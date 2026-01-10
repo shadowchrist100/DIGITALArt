@@ -1,61 +1,128 @@
-import Card from '../Common/Card';
+import { Star, MapPin, Users, Wrench, Zap, Hammer } from 'lucide-react';
 
 export default function FeaturedArtisans() {
   const artisans = [
     {
-      name: 'Jean Kouadio',
+      name: 'Floriane',
       profession: 'Plombier',
       rating: 4.9,
       reviews: 127,
       location: 'Cotonou',
-      image: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400'
+      icon: Wrench
     },
     {
-      name: 'Marie Togbé',
+      name: 'Floriane',
       profession: 'Électricienne',
       rating: 4.8,
       reviews: 89,
       location: 'Porto-Novo',
-      image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400'
+      icon: Zap
     },
     {
-      name: 'Paul Gbaguidi',
+      name: 'Floriane',
       profession: 'Menuisier',
       rating: 5.0,
       reviews: 156,
       location: 'Parakou',
-      image: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400'
+      icon: Hammer
     }
   ];
 
   return (
-    <section className="py-16 bg-white">
-      <div className="max-w-7xl mx-auto px-4">
-        <h2 className="text-4xl font-bold text-center mb-4 text-secondary">
-          Artisans en vedette
-        </h2>
-        <p className="text-center text-gray-600 mb-12 text-lg">
-          Découvrez nos meilleurs professionnels
-        </p>
+    <section className="relative py-20" style={{ backgroundColor: 'var(--light)' }}>
+      <div className="w-full max-w-6xl px-4 mx-auto sm:px-6 lg:px-8">
+        <div className="max-w-3xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 mb-8 text-sm font-semibold rounded-full" style={{ backgroundColor: 'rgba(255, 126, 95, 0.1)', color: '#ff7e5f' }}>
+            <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#ff7e5f' }}></span>
+            Excellence
+          </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <h2 className="mb-6 text-4xl font-black leading-tight md:text-5xl" style={{ color: 'var(--dark)' }}>
+            Artisans
+            <span className="text-transparent bg-gradient-to-r from-[#ff7e5f] to-[#ff6b4a] bg-clip-text" style={{ WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              {' '}en vedette
+            </span>
+          </h2>
+
+          <p className="max-w-2xl mx-auto mb-12 text-lg md:text-xl" style={{ color: 'var(--dark)', opacity: 0.7 }}>
+            Découvrez nos meilleurs professionnels certifiés
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
           {artisans.map((artisan, index) => (
-            <Card key={index}>
-              <img 
-                src={artisan.image} 
-                alt={artisan.name}
-                className="w-full h-48 object-cover rounded-lg mb-4"
-              />
-              <h3 className="text-xl font-bold text-gray-800 mb-2">{artisan.name}</h3>
-              <p className="text-primary font-semibold mb-2">{artisan.profession}</p>
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <span className="flex items-center gap-1">
-                  ⭐ {artisan.rating} ({artisan.reviews} avis)
-                </span>
-                <span>📍 {artisan.location}</span>
+            <div 
+              key={index} 
+              className="relative overflow-hidden transition-all duration-300 bg-white shadow-xl group rounded-2xl hover:shadow-2xl hover:-translate-y-2"
+              style={{ border: '1px solid var(--gray-dark)' }}
+            >
+              <div className="p-8">
+                <div className="flex items-start justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <div className={`p-4 rounded-2xl ${index === 0 ? 'bg-gradient-to-br from-blue-500 to-blue-600' : index === 1 ? 'bg-gradient-to-br from-[#ff7e5f] to-[#ff6b4a]' : 'bg-gradient-to-br from-green-500 to-green-600'}`}>
+                        <artisan.icon className="w-6 h-6 text-white" />
+                      </div>
+                      {/* Placeholder pour photo */}
+                      <div className="absolute flex items-center justify-center w-10 h-10 text-xs text-gray-500 bg-gray-200 border-2 border-white rounded-full -bottom-2 -right-2">
+                        Photo
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="mb-1 text-xl font-bold" style={{ color: 'var(--dark)' }}>{artisan.name}</h3>
+                      <p className="text-sm font-semibold" style={{ color: '#ff7e5f' }}>{artisan.profession}</p>
+                    </div>
+                  </div>
+                  <div className="px-3 py-1 text-xs font-bold text-white rounded-full" style={{ backgroundColor: '#ff7e5f' }}>
+                    TOP {index + 1}
+                  </div>
+                </div>
+
+                <div className="mb-6 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center">
+                      {[...Array(5)].map((_, i) => (
+                        <Star 
+                          key={i} 
+                          className={`w-4 h-4 ${i < Math.floor(artisan.rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-sm font-bold" style={{ color: 'var(--dark)' }}>{artisan.rating}</span>
+                    <span className="text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>({artisan.reviews} avis)</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--dark)', opacity: 0.8 }}>
+                    <MapPin className="w-4 h-4" />
+                    <span>{artisan.location}</span>
+                  </div>
+                </div>
+
+                <button className="w-full py-3 text-sm font-bold text-white transition-all rounded-xl hover:shadow-lg" 
+                        style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))' }}>
+                  Contacter l'artisan
+                </button>
               </div>
-            </Card>
+            </div>
           ))}
+        </div>
+
+        <div className="flex flex-col items-center max-w-2xl gap-6 p-8 mx-auto mt-16 bg-white shadow-xl sm:flex-row rounded-2xl" style={{ border: '1px solid var(--gray-dark)' }}>
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-xl" style={{ backgroundColor: 'rgba(255, 126, 95, 0.1)' }}>
+              <Users className="w-6 h-6" style={{ color: '#ff7e5f' }} />
+            </div>
+            <div>
+              <h3 className="mb-1 text-lg font-bold" style={{ color: 'var(--dark)' }}>Rejoindre notre réseau ?</h3>
+              <p className="text-sm" style={{ color: 'var(--dark)', opacity: 0.7 }}>
+                Devenez artisan certifié DigitalArt
+              </p>
+            </div>
+          </div>
+          <button className="w-full px-6 py-3 text-sm font-bold text-white transition-all shadow-md sm:w-auto rounded-xl whitespace-nowrap hover:shadow-lg" 
+                  style={{ background: 'linear-gradient(135deg, #ff7e5f, #ff6b4a)' }}>
+            Devenir artisan
+          </button>
         </div>
       </div>
     </section>

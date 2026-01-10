@@ -1,28 +1,26 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useState } from 'react'
-import Register from './components/Auth/Register'
-import Login from './components/Auth/Login'
-import Home from './components/Home'
-
+import Header from './components/Layout/Header';
+import Footer from './components/Layout/Footer';
+import Home from './pages/Home';
+import Login from './pages/Auth/Login';
+import Register from './pages/Auth/Register';
 
 function App() {
     return (
-        <AuthProvider>
-            <BrowserRouter>
-                <Routes>
-                    {/*  Routes  authentification  */}
-                    <Route path = "/login" element = { <Login /> } />
-                    <Route path = "/register" element = { <Register />} />
-
-                    {/* Routes public */}
-                    <Route path = "/" element = { <Home /> } />
-                    <Route>
-
-                    </Route>
-                </Routes>
-            </BrowserRouter>
-        </AuthProvider>
-    )
+        <BrowserRouter>
+            <div className="flex flex-col min-h-screen">
+                <Header />
+                <main className="flex-grow">
+                    <Routes>
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/register" element={<Register />} />
+                        <Route path="/" element={<Home />} />
+                    </Routes>
+                </main>
+                <Footer />
+            </div>
+        </BrowserRouter>
+    );
 }
 
 export default App;
