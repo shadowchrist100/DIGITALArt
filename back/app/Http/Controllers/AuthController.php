@@ -62,14 +62,14 @@ class AuthController extends Controller
         $refresh_token_hash = hash('sha256',$refresh_token);
         RefreshedToken::create([
             'user_id' => $user->id,
-            'refreshed_token_hash' => $refresh_token_hash,
+            'refresh_token_hash' => $refresh_token_hash,
             'expire_at' => now()->addDay(30)
         ]);
         $cookie = cookie('refresh_token', $refresh_token, 60 *24*30, '/', null, false, true, false, null );
         return response()->json([
             'access_token' => $token,
             'token_type' => 'Bearer',
-            'expires_in' => auth()->factory()->getTTL() * 60,
+            'expires_in' => auth('api')->factory()->getTTL() * 60,
             'user_data' => $user
         ])->withCookie($cookie);
 
