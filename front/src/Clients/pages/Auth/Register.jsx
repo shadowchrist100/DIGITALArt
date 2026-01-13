@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Eye, EyeOff, Mail, Lock, User, Check } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Check, Briefcase, Phone, UserCircle, Hammer } from "lucide-react";
 
 const Register = () => {
+  const [userType, setUserType] = useState("client"); // "client" ou "artisan"
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
+    phone: "",
+    specialty: "",
     acceptTerms: false,
   });
 
@@ -21,7 +24,7 @@ const Register = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log("Register:", formData);
+    console.log("Register:", { ...formData, userType });
   };
 
   return (
@@ -52,7 +55,38 @@ const Register = () => {
           border: '1px solid #e9ecef',
           backgroundColor: 'white'
         }}>
+          {/* Onglets Client / Artisan */}
+          <div className="flex gap-2 p-1 mb-5 rounded-lg" style={{ backgroundColor: '#f8f9fa' }}>
+            <button
+              type="button"
+              onClick={() => setUserType("client")}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold rounded-md transition-all"
+              style={{
+                backgroundColor: userType === "client" ? 'white' : 'transparent',
+                color: userType === "client" ? '#4a6fa5' : '#2b2d42',
+                boxShadow: userType === "client" ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              }}
+            >
+              <UserCircle className="w-4 h-4" />
+              Client
+            </button>
+            <button
+              type="button"
+              onClick={() => setUserType("artisan")}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold rounded-md transition-all"
+              style={{
+                backgroundColor: userType === "artisan" ? 'white' : 'transparent',
+                color: userType === "artisan" ? '#4a6fa5' : '#2b2d42',
+                boxShadow: userType === "artisan" ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              }}
+            >
+              <Hammer className="w-4 h-4" />
+              Artisan
+            </button>
+          </div>
+
           <form onSubmit={handleSubmit}>
+            {/* Nom complet */}
             <div className="mb-3">
               <label className="block mb-1.5 text-xs font-medium" style={{ color: '#2b2d42' }}>
                 Nom complet
@@ -78,6 +112,7 @@ const Register = () => {
               </div>
             </div>
 
+            {/* Email */}
             <div className="mb-3">
               <label className="block mb-1.5 text-xs font-medium" style={{ color: '#2b2d42' }}>
                 Adresse email
@@ -103,6 +138,71 @@ const Register = () => {
               </div>
             </div>
 
+            {/* Téléphone (pour les artisans) */}
+            {userType === "artisan" && (
+              <div className="mb-3">
+                <label className="block mb-1.5 text-xs font-medium" style={{ color: '#2b2d42' }}>
+                  Téléphone
+                </label>
+                <div className="relative">
+                  <Phone className="absolute w-4 h-4 -translate-y-1/2 left-2.5 top-1/2" style={{ color: '#ff7e5f' }} />
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="+229 XX XX XX XX"
+                    className="w-full py-2 pr-3 text-xs transition-all border rounded-md outline-none pl-9 focus:ring-2"
+                    style={{ 
+                      borderColor: '#e9ecef',
+                      backgroundColor: '#f8f9fa',
+                      color: '#2b2d42'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#4a6fa5'}
+                    onBlur={(e) => e.target.style.borderColor = '#e9ecef'}
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Spécialité (pour les artisans) */}
+            {userType === "artisan" && (
+              <div className="mb-3">
+                <label className="block mb-1.5 text-xs font-medium" style={{ color: '#2b2d42' }}>
+                  Spécialité
+                </label>
+                <div className="relative">
+                  <Briefcase className="absolute w-4 h-4 -translate-y-1/2 left-2.5 top-1/2" style={{ color: '#ff7e5f' }} />
+                  <select
+                    name="specialty"
+                    value={formData.specialty}
+                    onChange={handleChange}
+                    className="w-full py-2 pr-3 text-xs transition-all border rounded-md outline-none pl-9 focus:ring-2"
+                    style={{ 
+                      borderColor: '#e9ecef',
+                      backgroundColor: '#f8f9fa',
+                      color: '#2b2d42'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#4a6fa5'}
+                    onBlur={(e) => e.target.style.borderColor = '#e9ecef'}
+                    required
+                  >
+                    <option value="">Choisir une spécialité</option>
+                    <option value="plomberie">Plomberie</option>
+                    <option value="electricite">Électricité</option>
+                    <option value="menuiserie">Menuiserie</option>
+                    <option value="maconnerie">Maçonnerie</option>
+                    <option value="peinture">Peinture</option>
+                    <option value="climatisation">Climatisation</option>
+                    <option value="carrelage">Carrelage</option>
+                    <option value="autre">Autre</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Mot de passe */}
             <div className="mb-3">
               <label className="block mb-1.5 text-xs font-medium" style={{ color: '#2b2d42' }}>
                 Mot de passe
@@ -136,6 +236,7 @@ const Register = () => {
               </div>
             </div>
 
+            {/* Conditions */}
             <label className="flex items-start gap-2 mb-4 cursor-pointer group">
               <div className="relative mt-0.5">
                 <input
@@ -160,6 +261,7 @@ const Register = () => {
               </span>
             </label>
 
+            {/* Bouton */}
             <button 
               type="submit" 
               className="w-full py-2 text-xs font-semibold text-white rounded-md transition-all hover:shadow-lg hover:scale-[1.02]"
@@ -167,10 +269,11 @@ const Register = () => {
                 background: 'linear-gradient(135deg, #4a6fa5, #3a5784)'
               }}
             >
-              Créer mon compte
+              {userType === "client" ? "Créer mon compte client" : "Créer mon compte artisan"}
             </button>
           </form>
 
+          {/* Lien connexion */}
           <div className="pt-3 mt-4 text-center border-t" style={{ borderColor: '#e9ecef' }}>
             <p className="text-xs" style={{ color: '#2b2d42', opacity: 0.7 }}>
               Déjà un compte ?{" "}
