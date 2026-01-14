@@ -7,8 +7,8 @@ export default function Header() {
 
   const navLinks = [
     { name: 'Accueil', to: '/' },
-    { name: 'Trouver un artisan', to: '/trouver' },
-    { name: 'Mes demandes', to: '/demandes' },
+    { name: 'Trouver un artisan', to: '/artisans' },
+    { name: 'Mes demandes', to: '/my-services' },
   ];
 
   return (
