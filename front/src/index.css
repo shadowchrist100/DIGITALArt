@@ -1,1 +1,26 @@
-@import "tailwindcss";
+:root {
+  --primary: #4a6fa5;
+  --primary-light: #6b8cba;
+  --primary-dark: #3a5784;
+  --accent: #ff7e5f;
+  --light: #ffffff;
+  --dark: #2b2d42;
+  --gray: #f8f9fa;
+  --gray-dark: #e9ecef;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
