@@ -9,7 +9,6 @@ class Atelier extends Model
 {
     use HasFactory;
 
-    public $timestamps = false; // Si vous n'avez pas updated_at
 
     protected $fillable = [
         'artisan_id',
