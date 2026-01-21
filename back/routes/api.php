@@ -7,3 +7,11 @@ use App\Http\Controllers\ArtisanController;
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::get("/getArtisans", [ArtisanController::class, 'getAll']);
+
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register']);
+
+
+// Routes pour récupérer les artisans
+Route::get('/artisans', [ArtisanController::class, 'index']);
+Route::get('/artisans/{id}', [ArtisanController::class, 'show']);
