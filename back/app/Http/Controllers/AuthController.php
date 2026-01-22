@@ -1,6 +1,10 @@
 <?php
-
+//
 namespace App\Http\Controllers;
+
+use Illuminate\Support\Facades\Mail;
+use App\Mail\WelcomeEmail;
+
 
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\Controller;
@@ -26,7 +30,7 @@ class AuthController extends Controller
         // $credentials
         // $token =$user = [];
 
-        // connecté l'utilisateur, lui générer un accestoken 
+        // connecté l'utilisateur, lui générer un accestoken
 
         return $this->respond_with_token($token, $user);
     }
@@ -40,14 +44,19 @@ class AuthController extends Controller
             'role' => ['required'],
             'photo_profil' => ['mimes:jpg,jpeg,svg,png']
         ]);
-    
+
         $user = User::create($credentials);
         $token = auth('api')->login($user);
+         Mail::to($user->email)->send(new WelcomeEmail($user));
+
 
         // céer l'utilisateur lui générer un accesToken
 
         return $this->respond_with_token($token, $user);
+        
     }
+    //
+
 
     public function logout(){
 
@@ -73,9 +82,9 @@ class AuthController extends Controller
             'user_data' => $user
         ])->withCookie($cookie);
 
-        // récupérer l'accesToken et l'utilisateur 
-        // générer un refreshToken 
-        // retourner l'utilisateur, l'accesToken 
-        // retourner le refreshToken dans les cookies 
+        // récupérer l'accesToken et l'utilisateur
+        // générer un refreshToken
+        // retourner l'utilisateur, l'accesToken
+        // retourner le refreshToken dans les cookies
     }
 }
