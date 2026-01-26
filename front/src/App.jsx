@@ -47,6 +47,7 @@ import AdminReviews from "./Admin/pages/AdminReviews";
 import AdminSettings from "./Admin/pages/AdminSettings";
 import AdminLayout from "./Admin/layouts/AdminLayout";
 import { AuthProvider } from "./Clients/components/Auth/AuthContext";
+import AuthComponent from "./Clients/components/Auth/AuthComponent";
 
 function App() {
     return (
@@ -113,26 +114,30 @@ function App() {
                     <Route
                         path="/artisans"
                         element={
-                            <div className="flex flex-col min-h-screen">
-                                <Header />
-                                <main className="flex-grow">
-                                    <ArtisansList />
-                                </main>
-                                <Footer />
-                            </div>
+                            <AuthComponent>
+                                <div className="flex flex-col min-h-screen">
+                                    <Header />
+                                    <main className="flex-grow">
+                                        <ArtisansList />
+                                    </main>
+                                    <Footer />
+                                </div>
+                            </AuthComponent>
                         }
                     />
 
                     <Route
                         path="/artisan/:id"
                         element={
-                            <div className="flex flex-col min-h-screen">
-                                <Header />
-                                <main className="flex-grow">
-                                    <ArtisanDetail />
-                                </main>
-                                <Footer />
-                            </div>
+                            <AuthComponent>
+                                <div className="flex flex-col min-h-screen">
+                                    <Header />
+                                    <main className="flex-grow">
+                                        <ArtisanDetail />
+                                    </main>
+                                    <Footer />
+                                </div>
+                            </AuthComponent>
                         }
                     />
 
@@ -140,13 +145,16 @@ function App() {
                     <Route
                         path="/my-services"
                         element={
-                            <div className="flex flex-col min-h-screen">
-                                <Header />
-                                <main className="flex-grow">
-                                    <MyServices />
-                                </main>
-                                <Footer />
-                            </div>
+                            <AuthComponent>
+                                <div className="flex flex-col min-h-screen">
+                                    <Header />
+                                    <main className="flex-grow">
+                                        <MyServices />
+                                    </main>
+                                    <Footer />
+                                </div>
+                            </AuthComponent>
+
                         }
                     />
 
