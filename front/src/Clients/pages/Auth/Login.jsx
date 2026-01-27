@@ -64,13 +64,13 @@ const Login = () => {
                 body: JSON.stringify(formData)
             })
             if (!response.ok) {
-                throw new Error(`Une erreur est survenue code: ${response.status}`);
+
             }
             data = response.json();
             console.log(data);
 
         } catch (error) {
-
+            console.error("Une erreur: ", error);
         }
         setTimeout(() => {
             console.log("Form submitted:", { ...formData });
@@ -106,6 +106,11 @@ const Login = () => {
                     border: '1px solid #e9ecef',
                     backgroundColor: 'white'
                 }}>
+                    {errors.submit && (
+                        <div className="p-4 mb-6 rounded-xl" style={{ backgroundColor: 'rgba(255, 126, 95, 0.1)', borderLeft: '4px solid var(--accent)' }}>
+                            <p className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>{errors.submit}</p>
+                        </div>
+                    )}
                     <form onSubmit={handleSubmit}>
                         <div className="mb-4">
                             <label className="block mb-2 text-sm font-medium" style={{ color: '#2b2d42' }}>

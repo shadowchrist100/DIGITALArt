@@ -8,6 +8,7 @@ use App\Models\RefreshedToken;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Support\Facades\DB;
 
 
 class AuthController extends Controller
@@ -15,7 +16,7 @@ class AuthController extends Controller
     public function login(Request $request){
         $credentials = $request->validate([
             'email' => ['required', 'email', 'max:50'],
-            'password' => ['required', Password::min(8)]
+            'password' => ['required', Password::min(6)]
         ]);
         if (! $token = auth('api')->attempt($credentials)) {
             return response()->json(['error'=> 'Unauthorized'], 401);
@@ -36,7 +37,7 @@ class AuthController extends Controller
             'nom' => ['required', 'max:50'],
             'prenom' => ['required', 'max:50'],
             'email' => ['required', 'email' , 'unique:users', 'max:50'],
-            'password' => ['required', 'confirmed', Password::min(8)],
+            'password' => ['required', 'confirmed', Password::min(6)],
             'role' => ['required'],
             'photo_profil' => ['mimes:jpg,jpeg,svg,png']
         ]);
@@ -53,8 +54,26 @@ class AuthController extends Controller
 
     }
 
-    public function refresh(){
-        // rafraishir l'accessToken
+    public function refresh(Request $request){
+        $rawtoken = $request->cookie('refresh_token');
+
+        if (!$rawtoken) {
+            return response()->json(['error' => 'No refresh token'], 401);
+        }
+
+        $hash = hash('sha256', $rawtoken);
+        $refresh_token = DB::table('refreshed_tokens')->where('refresh_token_hash', $hash)->where('expire_at', '>', now())->first();
+
+        if (!$refresh_token) {
+            return response()->json(['error' => 'Invalid or expired refreshed_ token'], 401);
+        }
+        
+        DB::table('refreshed_token')->where('refreshed_token',$hash)->where('expire_at', '>', now())->delete();
+
+        $user = User::find($refresh_token->user_id);
+        $newAccessToken = auth('api')->login($user);
+
+        return $this->respond_with_token($newAccessToken,$user);
     }
 
     protected function respond_with_token($token, $user){
@@ -72,10 +91,5 @@ class AuthController extends Controller
             'expires_in' => auth('api')->factory()->getTTL() * 60,
             'user_data' => $user
         ])->withCookie($cookie);
-
-        // récupérer l'accesToken et l'utilisateur 
-        // générer un refreshToken 
-        // retourner l'utilisateur, l'accesToken 
-        // retourner le refreshToken dans les cookies 
     }
 }
