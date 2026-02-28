@@ -1,16 +1,16 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
+use App\Mail\ResetPasswordMail;
+use App\Models\Utilisateur;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-
 
 class PasswordController extends Controller
 {
@@ -24,6 +24,8 @@ class PasswordController extends Controller
             'email' => ['required', 'email', 'exists:utilisateurs,email'],
         ]);
 
+        $user = Utilisateur::where('email', $request->email)->first();
+
         // Supprimer un éventuel ancien token
         DB::table('password_reset_tokens')->where('email', $request->email)->delete();
 
@@ -35,13 +37,12 @@ class PasswordController extends Controller
             'created_at' => now(),
         ]);
 
-        // Envoyer l'email (adapter selon votre config mail)
-        $resetUrl = env('FRONTEND_URL', 'http://localhost:3000') . '/reset-password?token=' . $token . '&email=' . urlencode($request->email);
+        $resetUrl = env('FRONTEND_URL', 'http://localhost:3000')
+            . '/reset-password?token=' . $token
+            . '&email=' . urlencode($request->email);
 
-        Mail::send('emails.reset-password', ['url' => $resetUrl], function ($message) use ($request) {
-            $message->to($request->email)
-                    ->subject('Réinitialisation de votre mot de passe');
-        });
+        // Envoi via le Mailable dédié
+        Mail::to($request->email)->send(new ResetPasswordMail($resetUrl, $user->prenom));
 
         return response()->json([
             'message' => 'Un lien de réinitialisation a été envoyé à votre adresse email.',
@@ -49,7 +50,7 @@ class PasswordController extends Controller
     }
 
     /**
-     * Réinitialise le mot de passe avec le token reçu.
+     * Réinitialise le mot de passe avec le token reçu par email.
      * POST /api/auth/reset-password
      */
     public function resetPassword(Request $request): JsonResponse
@@ -58,6 +59,7 @@ class PasswordController extends Controller
             'email'                 => ['required', 'email', 'exists:utilisateurs,email'],
             'token'                 => ['required', 'string'],
             'mot_de_passe'          => ['required', 'confirmed', 'min:8'],
+            'mot_de_passe_confirmation' => ['required'],
         ]);
 
         $record = DB::table('password_reset_tokens')
@@ -68,7 +70,7 @@ class PasswordController extends Controller
             return response()->json(['message' => 'Token invalide ou expiré.'], 422);
         }
 
-        // Vérifier expiration (60 minutes)
+        // Expiration après 60 minutes
         if (now()->diffInMinutes($record->created_at) > 60) {
             DB::table('password_reset_tokens')->where('email', $request->email)->delete();
             return response()->json(['message' => 'Token expiré. Veuillez refaire une demande.'], 422);
@@ -82,7 +84,9 @@ class PasswordController extends Controller
 
         DB::table('password_reset_tokens')->where('email', $request->email)->delete();
 
-        return response()->json(['message' => 'Mot de passe réinitialisé avec succès. Veuillez vous reconnecter.']);
+        return response()->json([
+            'message' => 'Mot de passe réinitialisé avec succès. Veuillez vous reconnecter.',
+        ]);
     }
 
     /**
@@ -92,8 +96,9 @@ class PasswordController extends Controller
     public function changerMotDePasse(Request $request): JsonResponse
     {
         $request->validate([
-            'ancien_mot_de_passe' => ['required', 'string'],
-            'mot_de_passe'        => ['required', 'confirmed', 'min:8'],
+            'ancien_mot_de_passe'          => ['required', 'string'],
+            'mot_de_passe'                 => ['required', 'confirmed', 'min:8'],
+            'mot_de_passe_confirmation'    => ['required'],
         ]);
 
         $user = $request->user();
@@ -104,7 +109,7 @@ class PasswordController extends Controller
 
         $user->update(['mot_de_passe' => Hash::make($request->mot_de_passe)]);
 
-        // Révoquer tous les autres tokens (garder le courant)
+        // Révoquer tous les autres tokens (garder le courant actif)
         $currentTokenId = $user->currentAccessToken()->id;
         $user->tokens()->where('id', '!=', $currentTokenId)->delete();
 

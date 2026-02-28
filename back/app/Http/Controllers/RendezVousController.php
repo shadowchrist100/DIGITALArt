@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\ConfirmationRendezVousMail;
 use App\Models\RendezVous;
 use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Carbon\Carbon;
-
+use Illuminate\Support\Facades\Mail;
 
 class RendezVousController extends Controller
 {
-     public function __construct(private NotificationService $notifService) {}
+    public function __construct(private NotificationService $notifService) {}
 
     /**
      * Mes rendez-vous (client).
@@ -39,11 +39,9 @@ class RendezVousController extends Controller
             return response()->json(['message' => 'Atelier introuvable.'], 404);
         }
 
-        $statut = $request->statut; // filtre optionnel
-
         $rdvs = RendezVous::with('client:id,nom,prenom,photo_profil')
             ->where('atelier_id', $atelierId)
-            ->when($statut, fn($q) => $q->where('statut', $statut))
+            ->when($request->statut, fn($q) => $q->where('statut', $request->statut))
             ->orderBy('date_rdv')
             ->paginate(15);
 
@@ -58,7 +56,6 @@ class RendezVousController extends Controller
     {
         $rdv = RendezVous::with(['atelier', 'client'])->findOrFail($id);
 
-        // Vérifier que l'utilisateur est le client ou l'artisan concerné
         $user    = $request->user();
         $isOwner = $rdv->client_id === $user->id
             || $rdv->atelier->artisan->utilisateur_id === $user->id;
@@ -90,7 +87,9 @@ class RendezVousController extends Controller
             ->exists();
 
         if ($conflit) {
-            return response()->json(['message' => 'Ce créneau est déjà pris. Veuillez en choisir un autre.'], 422);
+            return response()->json([
+                'message' => 'Ce créneau est déjà pris. Veuillez en choisir un autre.',
+            ], 422);
         }
 
         $rdv = RendezVous::create([
@@ -103,6 +102,8 @@ class RendezVousController extends Controller
         ]);
 
         $rdv->load(['atelier', 'client']);
+
+        // Notification in-app à l'artisan
         $this->notifService->nouveauRendezVous($rdv);
 
         return response()->json([
@@ -125,7 +126,13 @@ class RendezVousController extends Controller
 
         $rdv->update(['statut' => 'ACCEPTE']);
         $rdv->load(['atelier', 'client']);
+
+        // Notification in-app
         $this->notifService->rdvAccepte($rdv);
+
+        // Email de confirmation au client
+        Mail::to($rdv->client->email)
+            ->send(new ConfirmationRendezVousMail($rdv, 'ACCEPTE'));
 
         return response()->json(['message' => 'Rendez-vous accepté.', 'rendez_vous' => $rdv]);
     }
@@ -144,7 +151,13 @@ class RendezVousController extends Controller
 
         $rdv->update(['statut' => 'REFUSE']);
         $rdv->load(['atelier', 'client']);
+
+        // Notification in-app
         $this->notifService->rdvRefuse($rdv);
+
+        // Email de refus au client
+        Mail::to($rdv->client->email)
+            ->send(new ConfirmationRendezVousMail($rdv, 'REFUSE'));
 
         return response()->json(['message' => 'Rendez-vous refusé.', 'rendez_vous' => $rdv]);
     }
@@ -163,13 +176,13 @@ class RendezVousController extends Controller
 
         $rdv->update(['statut' => 'ANNULE']);
         $rdv->load(['atelier', 'client']);
+
+        // Notification in-app à l'artisan
         $this->notifService->rdvAnnule($rdv, parClient: true);
 
         return response()->json(['message' => 'Rendez-vous annulé.', 'rendez_vous' => $rdv]);
     }
 
-    // ─────────────────────────────────────────────────────────
-    // HELPER
     // ─────────────────────────────────────────────────────────
 
     private function getRdvArtisan(Request $request, int $id): RendezVous
