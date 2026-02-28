@@ -75,6 +75,14 @@ class Atelier extends Model
     }
 
     /**
+     * Les oeuvres de la galerie de l'atelier.
+     */
+    public function oeuvres(): HasMany
+    {
+        return $this->hasMany(Oeuvre::class, 'atelier_id');
+    }
+
+    /**
      * Note moyenne calculée sur les avis.
      */
     public function noteMoyenne(): float
