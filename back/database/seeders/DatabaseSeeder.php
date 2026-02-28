@@ -16,7 +16,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            UtilisateurSeeder::class,   // 2 clients + 2 artisans
+            UserSeeder::class,   // 2 clients + 2 artisans
             AtelierSeeder::class,        // 2 ateliers avec offres + galerie + oeuvres
             HoraireSeeder::class,        // horaires des 2 artisans
             RendezVousSeeder::class,     // RDV dans différents statuts
