@@ -3,121 +3,66 @@
 namespace App\Http\Controllers;
 
 use App\Models\Notification;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+
 
 class NotificationController extends Controller
 {
     /**
+     * Mes notifications (paginées).
      * GET /api/notifications
-     * Liste toutes les notifications de l'utilisateur connecté
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
-        $query = Notification::where('user_id', Auth::id())
-            ->orderByDesc('created_at');
+        $notifications = Notification::where('destinataire_id', $request->user()->id)
+            ->orderByDesc('created_at')
+            ->paginate(20);
 
-        // Filtre par statut de lecture
-        if ($request->has('filter')) {
-            if ($request->filter === 'unread') {
-                $query->where('read', false);
-            } elseif ($request->filter === 'read') {
-                $query->where('read', true);
-            }
-        }
-
-        $notifications = $query->get()->map(function ($notif) {
-            return [
-                'id'      => $notif->id,
-                'type'    => $notif->type,
-                'title'   => $notif->title,
-                'message' => $notif->message,
-                'link'    => $notif->link,
-                'read'    => $notif->read,
-                'time'    => $this->formatTime($notif->created_at),
-            ];
-        });
-
-        $unreadCount = Notification::where('user_id', Auth::id())
-            ->where('read', false)
+        $nonLues = Notification::where('destinataire_id', $request->user()->id)
+            ->where('lu', false)
             ->count();
 
         return response()->json([
             'notifications' => $notifications,
-            'unread_count'  => $unreadCount,
-        ], 200);
+            'non_lues'      => $nonLues,
+        ]);
     }
 
     /**
-     * PUT /api/notifications/{id}/read
-     * Marquer une notification comme lue
+     * Marquer une notification comme lue.
+     * PATCH /api/notifications/{id}/lu
      */
-    public function markAsRead($id)
+    public function marquerLue(Request $request, int $id): JsonResponse
     {
-        $notification = Notification::where('id', $id)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
+        $notif = Notification::where('destinataire_id', $request->user()->id)->findOrFail($id);
+        $notif->marquerCommeLue();
 
-        $notification->update(['read' => true]);
-
-        return response()->json([
-            'message' => 'Notification marquée comme lue',
-        ], 200);
+        return response()->json(['message' => 'Notification marquée comme lue.']);
     }
 
     /**
-     * PUT /api/notifications/read-all
-     * Marquer toutes les notifications comme lues
+     * Marquer toutes les notifications comme lues.
+     * PATCH /api/notifications/lire-tout
      */
-    public function markAllAsRead()
+    public function marquerToutesLues(Request $request): JsonResponse
     {
-        Notification::where('user_id', Auth::id())
-            ->where('read', false)
-            ->update(['read' => true]);
+        $count = Notification::where('destinataire_id', $request->user()->id)
+            ->where('lu', false)
+            ->update(['lu' => true]);
 
-        return response()->json([
-            'message' => 'Toutes les notifications ont été marquées comme lues',
-        ], 200);
+        return response()->json(['message' => "{$count} notification(s) marquée(s) comme lue(s)."]);
     }
 
     /**
+     * Supprimer une notification.
      * DELETE /api/notifications/{id}
-     * Supprimer une notification
      */
-    public function destroy($id)
+    public function destroy(Request $request, int $id): JsonResponse
     {
-        $notification = Notification::where('id', $id)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
+        $notif = Notification::where('destinataire_id', $request->user()->id)->findOrFail($id);
+        $notif->delete();
 
-        $notification->delete();
-
-        return response()->json([
-            'message' => 'Notification supprimée',
-        ], 200);
-    }
-
-    /**
-     * Formater le temps relatif
-     */
-    private function formatTime($date)
-    {
-        $diff = now()->diffInMinutes($date);
-
-        if ($diff < 60) {
-            return "Il y a {$diff} minute" . ($diff > 1 ? 's' : '');
-        }
-
-        $hours = floor($diff / 60);
-        if ($hours < 24) {
-            return "Il y a {$hours} heure" . ($hours > 1 ? 's' : '');
-        }
-
-        $days = floor($hours / 24);
-        if ($days < 7) {
-            return "Il y a {$days} jour" . ($days > 1 ? 's' : '');
-        }
-
-        return $date->format('d M Y');
+        return response()->json(['message' => 'Notification supprimée.']);
     }
 }

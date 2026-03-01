@@ -2,192 +2,189 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Artisan;
-use App\Models\RefreshedToken;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    // ──────────────────────────────────────────────────────────────────────────
+    // -------------------------------------------------------------------------
     // REGISTER
-    // ──────────────────────────────────────────────────────────────────────────
-    public function register(Request $request)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Inscription d'un CLIENT.
+     */
+    public function registerClient(Request $request): JsonResponse
     {
-        $credentials = $request->validate([
-            'nom'                   => ['required', 'max:50'],
-            'prenom'                => ['required', 'max:50'],
-            'email'                 => ['required', 'email', 'unique:users', 'max:50'],
-            'password'              => ['required', 'confirmed', Password::min(6)],
-            'role'                  => ['required', 'in:CLIENT,ARTISAN'],
-            'photo_profil'          => ['nullable', 'mimes:jpg,jpeg,svg,png'],
-            // Champs artisan
-            'phone'                 => ['nullable', 'string', 'max:20'],
-            'specialty'             => ['nullable', 'string', 'max:50'],
+        $data = $request->validate([
+            'nom'          => ['required', 'string', 'max:100'],
+            'prenom'       => ['required', 'string', 'max:100'],
+            'email'        => ['required', 'email', 'unique:users,email'],
+            'mot_de_passe' => ['required', 'confirmed', Password::min(8)],
+            'photo_profil' => ['nullable', 'url', 'max:500'],
         ]);
 
-        // Créer l'utilisateur
         $user = User::create([
-            'nom'       => $credentials['nom'],
-            'prenom'    => $credentials['prenom'],
-            'email'     => $credentials['email'],
-            'password'  => $credentials['password'],
-            'role'      => $credentials['role'],
-            'specialite'=> $credentials['specialty'] ?? null,
+            'nom'          => $data['nom'],
+            'prenom'       => $data['prenom'],
+            'email'        => $data['email'],
+            'mot_de_passe' => Hash::make($data['mot_de_passe']),
+            'photo_profil' => $data['photo_profil'] ?? null,
+            'role'         => 'CLIENT',
         ]);
 
-        // Si artisan → créer l'entrée dans la table artisans
-        if ($credentials['role'] === 'ARTISAN') {
-            Artisan::create([
-                'user_id'   => $user->id,
-                'telephone' => $credentials['phone'] ?? null,
+        $token = $user->createToken('auth_token', ['role:client'])->plainTextToken;
+
+        return response()->json([
+            'message' => 'Compte client créé avec succès.',
+            'token'   => $token,
+            'user'    => $this->formatUser($user),
+        ], 201);
+    }
+
+    /**
+     * Inscription d'un ARTISAN (crée aussi le profil artisan).
+     */
+    public function registerArtisan(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'nom'          => ['required', 'string', 'max:100'],
+            'prenom'       => ['required', 'string', 'max:100'],
+            'email'        => ['required', 'email', 'unique:users,email'],
+            'mot_de_passe' => ['required', 'confirmed', Password::min(8)],
+            'photo_profil' => ['nullable', 'url', 'max:500'],
+            'telephone'    => ['required', 'string', 'max:20', 'unique:artisans,telephone'],
+        ]);
+
+        // Transaction pour garantir l'atomicité
+        $user = \DB::transaction(function () use ($data) {
+            $user = User::create([
+                'nom'          => $data['nom'],
+                'prenom'       => $data['prenom'],
+                'email'        => $data['email'],
+                'mot_de_passe' => Hash::make($data['mot_de_passe']),
+                'photo_profil' => $data['photo_profil'] ?? null,
+                'role'         => 'ARTISAN',
+            ]);
+
+            $user->artisan()->create([
+                'telephone' => $data['telephone'],
+            ]);
+
+            return $user;
+        });
+
+        $token = $user->createToken('auth_token', ['role:artisan'])->plainTextToken;
+
+        return response()->json([
+            'message' => 'Compte artisan créé avec succès.',
+            'token'   => $token,
+            'user'    => $this->formatUser($user->load('artisan')),
+        ], 201);
+    }
+
+    // -------------------------------------------------------------------------
+    // LOGIN
+    // -------------------------------------------------------------------------
+
+    public function login(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email'        => ['required', 'email'],
+            'mot_de_passe' => ['required', 'string'],
+        ]);
+
+        $user = User::where('email', $data['email'])->first();
+
+        if (! $user || ! Hash::check($data['mot_de_passe'], $user->mot_de_passe)) {
+            throw ValidationException::withMessages([
+                'email' => ['Les identifiants sont incorrects.'],
             ]);
         }
 
-        $token = auth('api')->login($user);
+        // Révoque les anciens tokens pour n'avoir qu'une session active
+        $user->tokens()->delete();
 
-        return $this->respondWithToken($token, $user);
-    }
+        $abilities = match ($user->role) {
+            'CLIENT'  => ['role:client'],
+            'ARTISAN' => ['role:artisan'],
+            default   => [],
+        };
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // LOGIN
-    // ──────────────────────────────────────────────────────────────────────────
-    public function login(Request $request)
-    {
-        $credentials = $request->validate([
-            'email'    => ['required', 'email', 'max:50'],
-            'password' => ['required'],
-        ]);
-
-        if (!$token = auth('api')->attempt($credentials)) {
-            return response()->json(['error' => 'Email ou mot de passe incorrect'], 401);
-        }
-
-        $user = auth('api')->user();
-
-        return $this->respondWithToken($token, $user);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // LOGOUT
-    // ──────────────────────────────────────────────────────────────────────────
-    public function logout(Request $request)
-    {
-        // Supprimer le refresh token du cookie
-        $refreshToken = $request->cookie('refresh_token');
-
-        if ($refreshToken) {
-            $hash = hash('sha256', $refreshToken);
-            RefreshedToken::where('refresh_token_hash', $hash)->delete();
-        }
-
-        auth('api')->logout();
-
-        return response()->json(['message' => 'Déconnexion réussie'])
-            ->withCookie(cookie()->forget('refresh_token'));
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // REFRESH — renouvelle l'access token via le refresh token en cookie
-    // ──────────────────────────────────────────────────────────────────────────
-    public function refresh(Request $request)
-    {
-        $refreshToken = $request->cookie('refresh_token');
-
-        if (!$refreshToken) {
-            return response()->json(['error' => 'Refresh token manquant'], 401);
-        }
-
-        $hash = hash('sha256', $refreshToken);
-
-        $tokenRecord = RefreshedToken::where('refresh_token_hash', $hash)
-            ->where('expire_at', '>', now())
-            ->first();
-
-        if (!$tokenRecord) {
-            return response()->json(['error' => 'Refresh token invalide ou expiré'], 401);
-        }
-
-        $user = User::find($tokenRecord->user_id);
-
-        if (!$user) {
-            return response()->json(['error' => 'Utilisateur introuvable'], 401);
-        }
-
-        // Supprimer l'ancien refresh token (rotation)
-        $tokenRecord->delete();
-
-        // Générer un nouvel access token
-        $newAccessToken = auth('api')->login($user);
-
-        return $this->respondWithToken($newAccessToken, $user);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // ME — retourne l'utilisateur connecté
-    // ──────────────────────────────────────────────────────────────────────────
-    public function me()
-    {
-        $user = auth('api')->user();
-
-        if (!$user) {
-            return response()->json(['error' => 'Non authentifié'], 401);
-        }
-
-        // Charger le profil artisan si besoin
-        if ($user->role === 'ARTISAN') {
-            $user->load('artisan');
-        }
-
-        return response()->json(['user' => $user]);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // HELPER — construit la réponse avec access token + cookie refresh token
-    // ──────────────────────────────────────────────────────────────────────────
-    protected function respondWithToken(string $token, User $user)
-    {
-        // Générer un refresh token sécurisé
-        $refreshToken     = bin2hex(random_bytes(64));
-        $refreshTokenHash = hash('sha256', $refreshToken);
-
-        // Supprimer les anciens refresh tokens de cet utilisateur (optionnel)
-        RefreshedToken::where('user_id', $user->id)
-            ->where('expire_at', '<', now())
-            ->delete();
-
-        RefreshedToken::create([
-            'user_id'             => $user->id,
-            'refresh_token_hash'  => $refreshTokenHash,
-            'expire_at'           => now()->addDays(30),
-        ]);
-
-        // Cookie HttpOnly, 30 jours
-        $cookie = cookie(
-            'refresh_token',
-            $refreshToken,
-            60 * 24 * 30,   // minutes
-            '/',
-            null,
-            false,          // secure (mettre true en prod avec HTTPS)
-            true,           // httpOnly
-            false,
-            'Lax'
-        );
-
-        // Charger les relations utiles
-        if ($user->role === 'ARTISAN') {
-            $user->load('artisan');
-        }
+        $token = $user->createToken('auth_token', $abilities)->plainTextToken;
 
         return response()->json([
-            'accesToken'  => $token,               // ← nom identique à AuthContext.jsx
-            'token_type'  => 'Bearer',
-            'expires_in'  => auth('api')->factory()->getTTL() * 60,
-            'user'        => $user,                // ← nom identique à AuthContext.jsx
-        ])->withCookie($cookie);
+            'message' => 'Connexion réussie.',
+            'token'   => $token,
+            'user'    => $this->formatUser($user->load('artisan.atelier')),
+        ]);
+    }
+
+    // -------------------------------------------------------------------------
+    // LOGOUT
+    // -------------------------------------------------------------------------
+
+    public function logout(Request $request): JsonResponse
+    {
+        // Révoque uniquement le token courant
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json(['message' => 'Déconnexion réussie.']);
+    }
+
+    /**
+     * Révoque TOUS les tokens (déconnexion de tous les appareils).
+     */
+    public function logoutAll(Request $request): JsonResponse
+    {
+        $request->user()->tokens()->delete();
+
+        return response()->json(['message' => 'Déconnecté de tous les appareils.']);
+    }
+
+    // -------------------------------------------------------------------------
+    // ME
+    // -------------------------------------------------------------------------
+
+    public function me(Request $request): JsonResponse
+    {
+        return response()->json([
+            'user' => $this->formatUser($request->user()->load('artisan.atelier')),
+        ]);
+    }
+
+    // -------------------------------------------------------------------------
+    // PRIVATE HELPERS
+    // -------------------------------------------------------------------------
+
+    private function formatUser(User $user): array
+    {
+        $data = [
+            'id'           => $user->id,
+            'nom'          => $user->nom,
+            'prenom'       => $user->prenom,
+            'email'        => $user->email,
+            'role'         => $user->role,
+            'photo_profil' => $user->photo_profil,
+            'created_at'   => $user->created_at,
+        ];
+
+        if ($user->relationLoaded('artisan') && $user->artisan) {
+            $data['artisan'] = [
+                'id'        => $user->artisan->id,
+                'telephone' => $user->artisan->telephone,
+                'atelier'   => $user->artisan->relationLoaded('atelier')
+                    ? $user->artisan->atelier
+                    : null,
+            ];
+        }
+
+        return $data;
     }
 }

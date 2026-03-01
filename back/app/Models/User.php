@@ -5,74 +5,56 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Tymon\JWTAuth\Contracts\JWTSubject;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Laravel\Sanctum\HasApiTokens;
 
-class User extends Authenticatable implements JWTSubject
+
+class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
+
+    protected $table = 'users';
 
     protected $fillable = [
         'nom',
         'prenom',
         'email',
-        'password',
-        'role',
+        'mot_de_passe',
         'photo_profil',
-        'bio',
-        'specialite',
-        'experience_level',
-        'verification_status',
-        'verification_documents',
-        'verified_at',
+        'role',
+        'suspendu',
     ];
 
     protected $hidden = [
-        'password',
+        'mot_de_passe',
     ];
 
-    protected function casts(): array
+    /**
+     * Surcharge pour que l'auth Laravel utilise 'mot_de_passe' au lieu de 'password'.
+     */
+    public function getAuthPassword(): string
     {
-        return [
-            'password'   => 'hashed',
-            'verified_at'=> 'datetime',
-        ];
+        return $this->mot_de_passe;
     }
 
-    // ── JWT ───────────────────────────────────────────────────────────────────
-    public function getJWTIdentifier()
-    {
-        return $this->getKey();
-    }
+    protected $casts = [
+        'role' => 'string',
+        'suspendu' => 'boolean',
+    ];
 
-    public function getJWTCustomClaims()
-    {
-        return [];
-    }
-
-    // ── Relations ─────────────────────────────────────────────────────────────
-
-    /** Profil artisan (téléphone, etc.) */
-    public function artisan()
-    {
-        return $this->hasOne(Artisan::class);
-    }
-
-    /** Avis reçus (quand l'utilisateur est artisan) */
-    public function avisRecus()
-    {
-        return $this->hasMany(Avis::class, 'artisan_id');
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    public function isArtisan(): bool
-    {
-        return $this->role === 'ARTISAN';
-    }
+    // -------------------------
+    // Helpers
+    // -------------------------
 
     public function isClient(): bool
     {
         return $this->role === 'CLIENT';
+    }
+
+    public function isArtisan(): bool
+    {
+        return $this->role === 'ARTISAN';
     }
 
     public function isAdmin(): bool
@@ -80,12 +62,55 @@ class User extends Authenticatable implements JWTSubject
         return $this->role === 'ADMIN';
     }
 
-    /** Note moyenne calculée depuis les avis */
-    public function getRatingAttribute(): ?float
+    // -------------------------
+    // Relations
+    // -------------------------
+
+    /**
+     * Un utilisateur ARTISAN possède un profil artisan.
+     */
+    public function artisan(): HasOne
     {
-        if ($this->relationLoaded('avisRecus') && $this->avisRecus->isNotEmpty()) {
-            return round($this->avisRecus->avg('note'), 1);
-        }
-        return null;
+        return $this->hasOne(Artisan::class, 'utilisateur_id');
+    }
+
+    /**
+     * Les rendez-vous demandés par ce client.
+     */
+    public function rendezVous(): HasMany
+    {
+        return $this->hasMany(RendezVous::class, 'client_id');
+    }
+
+    /**
+     * Les services demandés par ce client.
+     */
+    public function services(): HasMany
+    {
+        return $this->hasMany(Service::class, 'client_id');
+    }
+
+    /**
+     * Les services immédiats demandés par ce client.
+     */
+    public function servicesImmediats(): HasMany
+    {
+        return $this->hasMany(ServiceImmediat::class, 'client_id');
+    }
+
+    /**
+     * Les avis postés par ce client.
+     */
+    public function avis(): HasMany
+    {
+        return $this->hasMany(Avis::class, 'client_id');
+    }
+
+    /**
+     * Les notifications reçues par cet utilisateur.
+     */
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(Notification::class, 'destinataire_id');
     }
 }
