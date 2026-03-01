@@ -20,6 +20,11 @@ class Atelier extends Model
         'image_principale',
         'localisation',
         'domaine',
+        'suspendu',
+    ];
+
+    protected $casts = [
+        'suspendu' => 'boolean',
     ];
 
     // -------------------------

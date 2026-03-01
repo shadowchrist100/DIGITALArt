@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('image_principale', 500)->nullable();
             $table->string('localisation', 255);
             $table->string('domaine', 150);
+            $table->boolean('suspendu')->default(false);
             $table->timestamps();
         });
     }

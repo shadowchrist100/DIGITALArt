@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('mot_de_passe', 255);
             $table->string('photo_profil', 500)->nullable();
             $table->enum('role', ['CLIENT', 'ARTISAN', 'ADMIN'])->default('CLIENT');
+            $table->boolean('suspendu')->default(false);
             $table->timestamps();
         });
 

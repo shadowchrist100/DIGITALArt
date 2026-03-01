@@ -23,6 +23,7 @@ class User extends Authenticatable
         'mot_de_passe',
         'photo_profil',
         'role',
+        'suspendu',
     ];
 
     protected $hidden = [
@@ -39,6 +40,7 @@ class User extends Authenticatable
 
     protected $casts = [
         'role' => 'string',
+        'suspendu' => 'boolean',
     ];
 
     // -------------------------
