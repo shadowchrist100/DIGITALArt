@@ -17,7 +17,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
 
         $middleware->alias([
-            'role' => \App\Http\Middleware\CheckRole::class,
+            'role'     => \App\Http\Middleware\CheckRole::class,
+            'admin'    => \App\Http\Middleware\CheckAdmin::class,
+            'suspendu' => \App\Http\Middleware\CheckSuspendu::class,    
         ]);
 
         // Commenter si API mobile pure (pas de SPA cookie)
