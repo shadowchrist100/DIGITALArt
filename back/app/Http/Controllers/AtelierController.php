@@ -8,26 +8,42 @@ use Illuminate\Support\Facades\Auth;
 
 class AtelierController extends Controller
 {
-    // Récupérer les ateliers de l'artisan connecté
-    public function index()
+    // ── Mon atelier (artisan connecté) ────────────────────────────────────────
+    public function myAtelier()
     {
-        $ateliers = Atelier::where('user_id', Auth::id())->get();
-        return response()->json($ateliers, 200);
+        $atelier = Atelier::where('user_id', Auth::id())
+            ->with(['offres', 'avis'])
+            ->first();
+
+        if (!$atelier) {
+            return response()->json(['atelier' => null], 200);
+        }
+
+        return response()->json(['atelier' => $atelier], 200);
     }
 
-    // Créer un nouvel atelier
+    // ── Créer un atelier ──────────────────────────────────────────────────────
     public function store(Request $request)
     {
+        // Un artisan ne peut avoir qu'un seul atelier
+        $existing = Atelier::where('user_id', Auth::id())->first();
+        if ($existing) {
+            return response()->json([
+                'message' => 'Vous avez déjà un atelier.',
+                'atelier' => $existing,
+            ], 409);
+        }
+
         $validated = $request->validate([
-            'nom' => 'required|string|max:150',
+            'nom'              => 'required|string|max:150',
+            'description'      => 'required|string',
+            'domaine'          => 'required|string|max:100',
+            'localisation'     => 'required|string|max:255',
             'image_principale' => 'nullable|string',
-            'description' => 'required|string',
-            'domaine' => 'required|string|max:100',
-            'localisation' => 'required|string|max:255',
         ]);
 
         $atelier = Atelier::create([
-            'user_id' => Auth::id(),
+            'user_id'             => Auth::id(),
             'verification_status' => 'pending',
             ...$validated,
         ]);
@@ -38,20 +54,22 @@ class AtelierController extends Controller
         ], 201);
     }
 
-    // Afficher un atelier spécifique
-    public function show($id)
+    // ── Voir l'atelier public d'un artisan (par user_id) ─────────────────────
+    public function showByUser($userId)
     {
-        $atelier = Atelier::findOrFail($id);
-        
-        // Vérifier que c'est l'atelier de l'artisan connecté
-        if ($atelier->user_id !== Auth::id() && Auth::user()->role !== 'ADMIN') {
-            return response()->json(['message' => 'Non autorisé'], 403);
+        $atelier = Atelier::where('user_id', $userId)
+            ->where('verification_status', 'approved')
+            ->with(['offres', 'avis.user'])
+            ->first();
+
+        if (!$atelier) {
+            return response()->json(['atelier' => null], 200);
         }
 
-        return response()->json($atelier, 200);
+        return response()->json(['atelier' => $atelier], 200);
     }
 
-    // Mettre à jour un atelier
+    // ── Modifier son atelier ──────────────────────────────────────────────────
     public function update(Request $request, $id)
     {
         $atelier = Atelier::findOrFail($id);
@@ -61,14 +79,14 @@ class AtelierController extends Controller
         }
 
         $validated = $request->validate([
-            'nom' => 'string|max:150',
+            'nom'              => 'sometimes|string|max:150',
+            'description'      => 'sometimes|string',
+            'domaine'          => 'sometimes|string|max:100',
+            'localisation'     => 'sometimes|string|max:255',
             'image_principale' => 'nullable|string',
-            'description' => 'string',
-            'domaine' => 'string|max:100',
-            'localisation' => 'string|max:255',
         ]);
 
-        // Réinitialiser le statut à "pending" après modification
+        // Repasse en pending après modification
         $atelier->update([
             'verification_status' => 'pending',
             ...$validated,
@@ -76,11 +94,11 @@ class AtelierController extends Controller
 
         return response()->json([
             'message' => 'Atelier mis à jour. En attente d\'approbation admin.',
-            'atelier' => $atelier,
+            'atelier' => $atelier->fresh(),
         ], 200);
     }
 
-    // Supprimer un atelier
+    // ── Supprimer son atelier ─────────────────────────────────────────────────
     public function destroy($id)
     {
         $atelier = Atelier::findOrFail($id);
@@ -90,6 +108,7 @@ class AtelierController extends Controller
         }
 
         $atelier->delete();
+
         return response()->json(['message' => 'Atelier supprimé'], 200);
     }
 }
