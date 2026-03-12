@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { authService } from '../services/authService';
+import authService from '../services/authService';
 
 export const useAuth = () => {
   const [user, setUser] = useState(null);
@@ -7,19 +7,27 @@ export const useAuth = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    // Vérifie le token via GET /auth/me au démarrage
+    const checkAuth = async () => {
+      const storedUser = authService.getCurrentUser();
+      if (!storedUser || !authService.isAuthenticated()) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const data = await authService.getMe();
+        setUser(data.user ?? data);
+      } catch {
+        // Token invalide → on nettoie
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_user');
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
     checkAuth();
   }, []);
-
-  const checkAuth = () => {
-    try {
-      const currentUser = authService.getCurrentUser();
-      setUser(currentUser);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const login = async (email, password) => {
     try {
@@ -39,14 +47,12 @@ export const useAuth = () => {
   const logout = async () => {
     try {
       await authService.logout();
-      setUser(null);
     } catch (err) {
       console.error('Erreur lors de la déconnexion:', err);
+    } finally {
+      setUser(null);
     }
   };
-
-  const isAuthenticated = authService.isAuthenticated();
-  const isAdmin = authService.isAdmin();
 
   return {
     user,
@@ -54,8 +60,8 @@ export const useAuth = () => {
     error,
     login,
     logout,
-    isAuthenticated,
-    isAdmin,
+    isAuthenticated: authService.isAuthenticated(),
+    isAdmin: authService.isAdmin(),
   };
 };
 

@@ -19,10 +19,90 @@ const CATEGORIES = [
 
 const ITEMS_PER_PAGE = 9;
 
+// ── Carte artisan (extraite du composant parent pour éviter re-création à chaque render)
+function ArtisanCard({ artisan }) {
+  const name      = artisan.name ?? `${artisan.prenom ?? ''} ${artisan.nom ?? ''}`.trim();
+  const specialty = artisan.specialty ?? artisan.specialite ?? '';
+  const location  = artisan.location  ?? artisan.ville ?? '';
+  const photo     = artisan.photo     ?? artisan.image ?? null;
+  const initiale  = name.charAt(0).toUpperCase();
+
+  return (
+    <Link to={`/artisan/${artisan.id}`}>
+      <Card hover className="h-full group">
+        {/* Photo */}
+        <div className="relative mb-4">
+          {artisan.available && (
+            <div className="absolute z-10 px-3 py-1 text-xs font-bold text-white rounded-full top-3 right-3"
+              style={{ backgroundColor: '#22c55e' }}>
+              Disponible
+            </div>
+          )}
+          <div className="w-full h-48 overflow-hidden rounded-xl" style={{ backgroundColor: 'var(--gray)' }}>
+            {photo ? (
+              <img src={photo} alt={name}
+                className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" />
+            ) : (
+              <div className="flex items-center justify-center w-full h-full text-5xl font-black text-white"
+                style={{ background: 'linear-gradient(135deg, #4a6fa5, #2d4a7c)' }}>
+                {initiale}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Infos */}
+        <div className="mb-4">
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <h3 className="mb-1 text-xl font-bold" style={{ color: 'var(--dark)' }}>{name}</h3>
+              <p className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>{specialty}</p>
+            </div>
+            {(artisan.verified || artisan.verification_status === 'approved') && (
+              <div className="px-2 py-1 text-xs font-bold rounded-full"
+                style={{ backgroundColor: 'rgba(74, 111, 165, 0.1)', color: 'var(--primary)' }}>
+                ✓ Vérifié
+              </div>
+            )}
+          </div>
+
+          {location && (
+            <div className="flex items-center gap-2 mb-3 text-sm" style={{ color: 'var(--dark)', opacity: 0.7 }}>
+              <MapPin className="w-4 h-4" /><span>{location}</span>
+            </div>
+          )}
+
+          {artisan.rating != null && (
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className={`w-4 h-4 ${i < Math.floor(artisan.rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
+                ))}
+              </div>
+              <span className="text-sm font-bold" style={{ color: 'var(--dark)' }}>{artisan.rating}</span>
+              {artisan.reviews != null && (
+                <span className="text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>({artisan.reviews} avis)</span>
+              )}
+            </div>
+          )}
+
+          {artisan.price && (
+            <div className="text-sm font-bold" style={{ color: 'var(--primary)' }}>
+              À partir de {artisan.price} FCFA
+            </div>
+          )}
+        </div>
+
+        <Button variant="primary" className="w-full">Voir le profil</Button>
+      </Card>
+    </Link>
+  );
+}
+
 export default function ArtisansList() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // ── Filtres depuis l'URL (source de vérité) ────────────────────────────────
+  // ── Filtres depuis l'URL (source de vérité)
   const urlSearch   = searchParams.get('search')       || '';
   const urlLocation = searchParams.get('location')     || '';
   const urlCategory = searchParams.get('category')     || 'all';
@@ -30,24 +110,26 @@ export default function ArtisansList() {
   const urlAvail    = searchParams.get('availability') || 'all';
   const urlPage     = Number(searchParams.get('page')  || 1);
 
-  // ── Inputs locaux (avant soumission) ──────────────────────────────────────
+  // ── Inputs locaux (avant soumission)
   const [inputSearch,   setInputSearch]   = useState(urlSearch);
   const [inputLocation, setInputLocation] = useState(urlLocation);
 
-  // ── État ──────────────────────────────────────────────────────────────────
+  // ── État
   const [artisans,    setArtisans]    = useState([]);
   const [totalCount,  setTotalCount]  = useState(0);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState(null);
   const [showFilters, setShowFilters] = useState(false);
+  // Compteur pour forcer un retry sans changer les params URL
+  const [retryCount,  setRetryCount]  = useState(0);
 
-  // Sync inputs si URL change depuis l'extérieur (ex: CategoriesGrid)
+  // Sync inputs si URL change depuis l'extérieur
   useEffect(() => {
     setInputSearch(urlSearch);
     setInputLocation(urlLocation);
   }, [urlSearch, urlLocation]);
 
-  // ── Appel API ──────────────────────────────────────────────────────────────
+  // ── Appel API
   useEffect(() => {
     const controller = new AbortController();
 
@@ -66,23 +148,21 @@ export default function ArtisansList() {
         params.set('per_page', String(ITEMS_PER_PAGE));
 
         const res = await fetch(`/api/artisans?${params}`, {
-          headers:   { Accept: 'application/json' },
+          headers:     { Accept: 'application/json' },
           credentials: 'include',
-          signal:    controller.signal,
+          signal:      controller.signal,
         });
 
         if (!res.ok) throw new Error(`Erreur serveur ${res.status}`);
 
         const json = await res.json();
 
-        // Compatible plusieurs formats Laravel :
-        // { data: [...], total: N }  |  { artisans: [...], meta: { total: N } }  |  [...]
         if (Array.isArray(json)) {
           setArtisans(json);
           setTotalCount(json.length);
         } else if (Array.isArray(json.data)) {
           setArtisans(json.data);
-          setTotalCount(json.total ?? json.data.length);
+          setTotalCount(json.total ?? json.meta?.total ?? json.data.length);
         } else if (Array.isArray(json.artisans)) {
           setArtisans(json.artisans);
           setTotalCount(json.meta?.total ?? json.artisans.length);
@@ -102,9 +182,9 @@ export default function ArtisansList() {
 
     fetchArtisans();
     return () => controller.abort();
-  }, [urlSearch, urlLocation, urlCategory, urlRating, urlAvail, urlPage]);
+  }, [urlSearch, urlLocation, urlCategory, urlRating, urlAvail, urlPage, retryCount]);
 
-  // ── Helpers URL ────────────────────────────────────────────────────────────
+  // ── Helpers URL
   const pushParams = useCallback((overrides = {}) => {
     const next = {
       search:       inputSearch,
@@ -116,19 +196,20 @@ export default function ArtisansList() {
       ...overrides,
     };
     const p = {};
-    if (next.search)                  p.search       = next.search;
-    if (next.location)                p.location     = next.location;
-    if (next.category !== 'all')      p.category     = next.category;
-    if (Number(next.minRating))       p.minRating    = next.minRating;
-    if (next.availability !== 'all')  p.availability = next.availability;
-    if (Number(next.page) > 1)        p.page         = next.page;
+    if (next.search)                 p.search       = next.search;
+    if (next.location)               p.location     = next.location;
+    if (next.category !== 'all')     p.category     = next.category;
+    if (Number(next.minRating))      p.minRating    = next.minRating;
+    if (next.availability !== 'all') p.availability = next.availability;
+    if (Number(next.page) > 1)       p.page         = next.page;
     setSearchParams(p);
   }, [inputSearch, inputLocation, urlCategory, urlRating, urlAvail, setSearchParams]);
 
-  const handleSearch     = () => pushParams();
+  const handleSearch       = () => pushParams();
   const handleSelectChange = (key, val) => pushParams({ [key]: val });
-  const goToPage         = (p) => pushParams({ page: String(p) });
-  const clearFilters     = () => { setInputSearch(''); setInputLocation(''); setSearchParams({}); };
+  const goToPage           = (p) => pushParams({ page: String(p) });
+  const clearFilters       = () => { setInputSearch(''); setInputLocation(''); setSearchParams({}); };
+  const handleRetry        = () => setRetryCount(c => c + 1);
 
   const totalPages       = Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE));
   const hasActiveFilters = urlSearch || urlLocation || urlCategory !== 'all' || urlRating > 0 || urlAvail !== 'all';
@@ -140,87 +221,6 @@ export default function ArtisansList() {
     return pages;
   };
 
-  // ── Rendu d'une carte artisan ──────────────────────────────────────────────
-  const ArtisanCard = ({ artisan }) => {
-    const name      = artisan.name ?? `${artisan.prenom ?? ''} ${artisan.nom ?? ''}`.trim();
-    const specialty = artisan.specialty ?? artisan.specialite ?? '';
-    const location  = artisan.location  ?? artisan.ville ?? '';
-    const photo     = artisan.photo     ?? artisan.image ?? null;
-    const initiale  = name.charAt(0).toUpperCase();
-
-    return (
-      <Link to={`/artisan/${artisan.id}`}>
-        <Card hover className="h-full group">
-          {/* Photo */}
-          <div className="relative mb-4">
-            {artisan.available && (
-              <div className="absolute z-10 px-3 py-1 text-xs font-bold text-white rounded-full top-3 right-3"
-                style={{ backgroundColor: '#22c55e' }}>
-                Disponible
-              </div>
-            )}
-            <div className="w-full h-48 overflow-hidden rounded-xl" style={{ backgroundColor: 'var(--gray)' }}>
-              {photo ? (
-                <img src={photo} alt={name}
-                  className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" />
-              ) : (
-                <div className="flex items-center justify-center w-full h-full text-5xl font-black text-white"
-                  style={{ background: 'linear-gradient(135deg, #4a6fa5, #2d4a7c)' }}>
-                  {initiale}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Infos */}
-          <div className="mb-4">
-            <div className="flex items-start justify-between mb-2">
-              <div>
-                <h3 className="mb-1 text-xl font-bold" style={{ color: 'var(--dark)' }}>{name}</h3>
-                <p className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>{specialty}</p>
-              </div>
-              {artisan.verified && (
-                <div className="px-2 py-1 text-xs font-bold rounded-full"
-                  style={{ backgroundColor: 'rgba(74, 111, 165, 0.1)', color: 'var(--primary)' }}>
-                  ✓ Vérifié
-                </div>
-              )}
-            </div>
-
-            {location && (
-              <div className="flex items-center gap-2 mb-3 text-sm" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                <MapPin className="w-4 h-4" /><span>{location}</span>
-              </div>
-            )}
-
-            {artisan.rating != null && (
-              <div className="flex items-center gap-2 mb-3">
-                <div className="flex items-center">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className={`w-4 h-4 ${i < Math.floor(artisan.rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
-                  ))}
-                </div>
-                <span className="text-sm font-bold" style={{ color: 'var(--dark)' }}>{artisan.rating}</span>
-                {artisan.reviews != null && (
-                  <span className="text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>({artisan.reviews} avis)</span>
-                )}
-              </div>
-            )}
-
-            {artisan.price && (
-              <div className="text-sm font-bold" style={{ color: 'var(--primary)' }}>
-                À partir de {artisan.price} FCFA
-              </div>
-            )}
-          </div>
-
-          <Button variant="primary" className="w-full">Voir le profil</Button>
-        </Card>
-      </Link>
-    );
-  };
-
-  // ── JSX principal ──────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen pt-24 pb-20" style={{ backgroundColor: 'var(--light)' }}>
       <div className="px-4 mx-auto max-w-7xl sm:px-6 lg:px-8">
@@ -229,7 +229,7 @@ export default function ArtisansList() {
         <div className="mb-10">
           <div className="inline-flex items-center gap-2 px-4 py-2 mb-6 text-sm font-semibold rounded-full"
             style={{ backgroundColor: 'rgba(74, 111, 165, 0.1)', color: 'var(--primary)' }}>
-            <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent)' }}></span>
+            <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent)' }} />
             {loading ? 'Chargement…' : `${totalCount} artisan${totalCount > 1 ? 's' : ''} trouvé${totalCount > 1 ? 's' : ''}`}
           </div>
 
@@ -241,7 +241,6 @@ export default function ArtisansList() {
             </span>
           </h1>
 
-          {/* Badge catégorie active */}
           {urlCategory !== 'all' && (
             <div className="flex items-center gap-2 mt-2">
               <span className="px-3 py-1 text-sm font-semibold rounded-full"
@@ -284,17 +283,15 @@ export default function ArtisansList() {
               <SlidersHorizontal className="w-5 h-5" />
               Filtres
               {hasActiveFilters && !showFilters && (
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent)' }}></span>
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent)' }} />
               )}
               {showFilters && <X className="w-4 h-4 ml-2" />}
             </button>
           </div>
 
-          {/* Filtres avancés */}
           {showFilters && (
             <div className="pt-6 mt-6 border-t" style={{ borderColor: 'var(--gray-dark)' }}>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                {/* Catégorie */}
                 <div>
                   <label className="block mb-2 text-sm font-bold" style={{ color: 'var(--dark)' }}>Catégorie</label>
                   <div className="relative">
@@ -303,11 +300,11 @@ export default function ArtisansList() {
                       style={{ backgroundColor: 'var(--gray)', borderColor: 'var(--gray-dark)', color: 'var(--dark)' }}>
                       {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                     </select>
-                    <ChevronDown className="absolute w-5 h-5 -translate-y-1/2 right-4 top-1/2" style={{ color: 'var(--primary-light)' }} />
+                    <ChevronDown className="absolute w-5 h-5 -translate-y-1/2 right-4 top-1/2"
+                      style={{ color: 'var(--primary-light)' }} />
                   </div>
                 </div>
 
-                {/* Note minimale */}
                 <div>
                   <label className="block mb-2 text-sm font-bold" style={{ color: 'var(--dark)' }}>Note minimale</label>
                   <select value={urlRating} onChange={(e) => handleSelectChange('minRating', e.target.value)}
@@ -320,7 +317,6 @@ export default function ArtisansList() {
                   </select>
                 </div>
 
-                {/* Disponibilité */}
                 <div>
                   <label className="block mb-2 text-sm font-bold" style={{ color: 'var(--dark)' }}>Disponibilité</label>
                   <select value={urlAvail} onChange={(e) => handleSelectChange('availability', e.target.value)}
@@ -347,9 +343,9 @@ export default function ArtisansList() {
         {/* Erreur */}
         {error && (
           <Card className="py-10 mb-8 text-center">
-            <p className="font-semibold" style={{ color: '#e74c3c' }}>⚠️ {error}</p>
-            <button onClick={() => setSearchParams({ ...Object.fromEntries(searchParams) })}
-              className="px-6 py-2 mt-4 text-sm font-bold text-white rounded-lg"
+            <p className="mb-4 font-semibold" style={{ color: '#e74c3c' }}>⚠️ {error}</p>
+            <button onClick={handleRetry}
+              className="px-6 py-2 text-sm font-bold text-white rounded-lg"
               style={{ backgroundColor: 'var(--primary)' }}>
               Réessayer
             </button>
@@ -360,7 +356,7 @@ export default function ArtisansList() {
         {loading && (
           <div className="flex items-center justify-center py-20">
             <div className="w-12 h-12 border-4 rounded-full border-t-transparent animate-spin"
-              style={{ borderColor: 'var(--primary)' }}></div>
+              style={{ borderColor: 'var(--primary)' }} />
           </div>
         )}
 

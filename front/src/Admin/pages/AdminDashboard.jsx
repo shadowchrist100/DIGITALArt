@@ -1,25 +1,22 @@
 import { useState, useEffect } from 'react';
-import { 
-  Users, 
-  Briefcase, 
-  Store, 
-  Star, 
-  Calendar, 
+import {
+  Users,
+  Briefcase,
+  Store,
+  Star,
+  Calendar,
   TrendingUp,
   UserCheck,
   AlertCircle
 } from 'lucide-react';
+import statsService from '../services/statsService';
 
-// Composant StatCard en dehors pour éviter les re-renders
 const StatCard = ({ icon, title, value, color, bgColor, trend }) => {
   const Icon = icon;
   return (
-    <div 
+    <div
       className="p-6 transition-all shadow-md rounded-xl hover:shadow-lg"
-      style={{ 
-        backgroundColor: 'white',
-        border: '1px solid #e9ecef'
-      }}
+      style={{ backgroundColor: 'white', border: '1px solid #e9ecef' }}
     >
       <div className="flex items-start justify-between">
         <div>
@@ -27,7 +24,7 @@ const StatCard = ({ icon, title, value, color, bgColor, trend }) => {
             {title}
           </p>
           <h3 className="text-3xl font-bold" style={{ color: '#2b2d42' }}>
-            {value.toLocaleString()}
+            {(value ?? 0).toLocaleString()}
           </h3>
           {trend && (
             <div className="flex items-center gap-1 mt-2">
@@ -41,10 +38,7 @@ const StatCard = ({ icon, title, value, color, bgColor, trend }) => {
             </div>
           )}
         </div>
-        <div 
-          className="p-3 rounded-lg"
-          style={{ backgroundColor: bgColor }}
-        >
+        <div className="p-3 rounded-lg" style={{ backgroundColor: bgColor }}>
           <Icon className="w-6 h-6" style={{ color }} />
         </div>
       </div>
@@ -53,37 +47,39 @@ const StatCard = ({ icon, title, value, color, bgColor, trend }) => {
 };
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({
-    totalClients: 0,
-    totalArtisans: 0,
-    totalAteliers: 0,
-    totalServices: 0,
-    totalAvis: 0,
-    artisansEnAttente: 0,
-    serviceEnCours: 0,
-    rdvAujourdhui: 0
-  });
-
-  const fetchStats = async () => {
-    // TODO: Appeler l'API pour récupérer les stats
-    // Exemple de données mockées pour l'instant
-    setStats({
-      totalClients: 1245,
-      totalArtisans: 387,
-      totalAteliers: 325,
-      totalServices: 2156,
-      totalAvis: 1842,
-      artisansEnAttente: 12,
-      serviceEnCours: 45,
-      rdvAujourdhui: 23
-    });
-  };
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    // Charger les statistiques depuis l'API
+    const fetchStats = async () => {
+      try {
+        const data = await statsService.getDashboard();
+        setStats(data);
+      } catch (err) {
+        setError(err.message || 'Erreur lors du chargement des statistiques');
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchStats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: '#f8f9fa' }}>
+        <div className="w-10 h-10 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: '#f8f9fa' }}>
+        <div className="p-4 text-red-600 bg-red-100 rounded-lg">{error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen p-6" style={{ backgroundColor: '#f8f9fa' }}>
@@ -94,22 +90,22 @@ export default function AdminDashboard() {
             Tableau de bord
           </h1>
           <p className="text-sm" style={{ color: '#6c757d' }}>
-            Vue d'ensemble de la plateforme DigitalArt
+            Vue d'ensemble de la plateforme ArtisanConnect
           </p>
         </div>
 
-        {/* Alertes */}
-        {stats.artisansEnAttente > 0 && (
-          <div 
+        {/* Alerte artisans en attente */}
+        {stats?.artisans_en_attente > 0 && (
+          <div
             className="flex items-center gap-3 p-4 mb-6 rounded-lg"
-            style={{ 
+            style={{
               backgroundColor: 'rgba(255, 193, 7, 0.1)',
               border: '1px solid rgba(255, 193, 7, 0.3)'
             }}
           >
             <AlertCircle className="w-5 h-5" style={{ color: '#ffc107' }} />
             <p className="text-sm font-medium" style={{ color: '#2b2d42' }}>
-              {stats.artisansEnAttente} artisan{stats.artisansEnAttente > 1 ? 's' : ''} en attente de vérification
+              {stats.artisans_en_attente} artisan{stats.artisans_en_attente > 1 ? 's' : ''} en attente de vérification
             </p>
           </div>
         )}
@@ -119,31 +115,28 @@ export default function AdminDashboard() {
           <StatCard
             icon={Users}
             title="Total Clients"
-            value={stats.totalClients}
+            value={stats?.total_clients}
             color="#4a6fa5"
             bgColor="rgba(74, 111, 165, 0.1)"
-            trend={12}
           />
           <StatCard
             icon={Briefcase}
             title="Total Artisans"
-            value={stats.totalArtisans}
+            value={stats?.total_artisans}
             color="#ff7e5f"
             bgColor="rgba(255, 126, 95, 0.1)"
-            trend={8}
           />
           <StatCard
             icon={Store}
             title="Ateliers Actifs"
-            value={stats.totalAteliers}
+            value={stats?.total_ateliers}
             color="#22c55e"
             bgColor="rgba(34, 197, 94, 0.1)"
-            trend={5}
           />
           <StatCard
             icon={Star}
             title="Total Avis"
-            value={stats.totalAvis}
+            value={stats?.total_avis}
             color="#f59e0b"
             bgColor="rgba(245, 158, 11, 0.1)"
           />
@@ -151,12 +144,9 @@ export default function AdminDashboard() {
 
         {/* Statistiques secondaires */}
         <div className="grid grid-cols-1 gap-6 mb-8 md:grid-cols-3">
-          <div 
+          <div
             className="p-6 shadow-md rounded-xl"
-            style={{ 
-              backgroundColor: 'white',
-              border: '1px solid #e9ecef'
-            }}
+            style={{ backgroundColor: 'white', border: '1px solid #e9ecef' }}
           >
             <div className="flex items-center gap-3 mb-4">
               <UserCheck className="w-5 h-5" style={{ color: '#ffc107' }} />
@@ -165,16 +155,13 @@ export default function AdminDashboard() {
               </h3>
             </div>
             <p className="text-3xl font-bold" style={{ color: '#2b2d42' }}>
-              {stats.artisansEnAttente}
+              {stats?.artisans_en_attente ?? 0}
             </p>
           </div>
 
-          <div 
+          <div
             className="p-6 shadow-md rounded-xl"
-            style={{ 
-              backgroundColor: 'white',
-              border: '1px solid #e9ecef'
-            }}
+            style={{ backgroundColor: 'white', border: '1px solid #e9ecef' }}
           >
             <div className="flex items-center gap-3 mb-4">
               <Briefcase className="w-5 h-5" style={{ color: '#4a6fa5' }} />
@@ -183,16 +170,13 @@ export default function AdminDashboard() {
               </h3>
             </div>
             <p className="text-3xl font-bold" style={{ color: '#2b2d42' }}>
-              {stats.serviceEnCours}
+              {stats?.services_en_cours ?? 0}
             </p>
           </div>
 
-          <div 
+          <div
             className="p-6 shadow-md rounded-xl"
-            style={{ 
-              backgroundColor: 'white',
-              border: '1px solid #e9ecef'
-            }}
+            style={{ backgroundColor: 'white', border: '1px solid #e9ecef' }}
           >
             <div className="flex items-center gap-3 mb-4">
               <Calendar className="w-5 h-5" style={{ color: '#22c55e' }} />
@@ -201,20 +185,16 @@ export default function AdminDashboard() {
               </h3>
             </div>
             <p className="text-3xl font-bold" style={{ color: '#2b2d42' }}>
-              {stats.rdvAujourdhui}
+              {stats?.rdv_aujourd_hui ?? 0}
             </p>
           </div>
         </div>
 
-        {/* Graphiques et tableaux à venir */}
+        {/* Sections à compléter */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Activité récente */}
-          <div 
+          <div
             className="p-6 shadow-md rounded-xl"
-            style={{ 
-              backgroundColor: 'white',
-              border: '1px solid #e9ecef'
-            }}
+            style={{ backgroundColor: 'white', border: '1px solid #e9ecef' }}
           >
             <h3 className="mb-4 text-lg font-bold" style={{ color: '#2b2d42' }}>
               Activité récente
@@ -224,13 +204,9 @@ export default function AdminDashboard() {
             </p>
           </div>
 
-          {/* Services populaires */}
-          <div 
+          <div
             className="p-6 shadow-md rounded-xl"
-            style={{ 
-              backgroundColor: 'white',
-              border: '1px solid #e9ecef'
-            }}
+            style={{ backgroundColor: 'white', border: '1px solid #e9ecef' }}
           >
             <h3 className="mb-4 text-lg font-bold" style={{ color: '#2b2d42' }}>
               Services populaires

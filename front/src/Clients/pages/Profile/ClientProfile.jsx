@@ -7,8 +7,10 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../components/Auth/AuthContext';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
 export default function ClientProfile() {
-  const { user, logout, loading, accesToken } = useAuth();
+  const { user, logout, loading, token } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -18,16 +20,15 @@ export default function ClientProfile() {
   const [profileData, setProfileData] = useState(null);
 
   const isNewRegistration = location.state?.newRegistration;
-  const isArtisan = user?.role === 'ARTISAN' || user?.role === 'artisan';
+  const isArtisan = user?.role === 'ARTISAN';
 
-  // ── Charger profil complet depuis l'API ────────────────────────────────────
+  // GET /profil
   useEffect(() => {
-    if (!user || !accesToken || !isArtisan) return;
+    if (!user || !token) return;
     const fetchProfile = async () => {
       try {
-        const res = await fetch('/api/artisan/profile', {
-          headers: { Accept: 'application/json', Authorization: `Bearer ${accesToken}` },
-          credentials: 'include',
+        const res = await fetch(`${API_URL}/profil`, {
+          headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
         });
         if (!res.ok) return;
         const data = await res.json();
@@ -35,35 +36,32 @@ export default function ClientProfile() {
       } catch { /* utilise contexte */ }
     };
     fetchProfile();
-  }, [user, accesToken, isArtisan]);
+  }, [user, token]);
 
-  // ── Charger atelier ────────────────────────────────────────────────────────
+  // GET /mon-atelier (artisan seulement)
   useEffect(() => {
-    if (!user || !isArtisan || !accesToken) return;
+    if (!user || !isArtisan || !token) return;
     const fetchAtelier = async () => {
       setAtelierLoad(true);
       try {
-        const res = await fetch('/api/atelier/mine', {
-          headers: { Accept: 'application/json', Authorization: `Bearer ${accesToken}` },
-          credentials: 'include',
+        const res = await fetch(`${API_URL}/mon-atelier`, {
+          headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
         });
         if (!res.ok) return;
         const data = await res.json();
-        setAtelier(data.atelier ?? null);
+        setAtelier(data.atelier ?? data ?? null);
       } catch { /* pas d'atelier = normal */ }
       finally { setAtelierLoad(false); }
     };
     fetchAtelier();
-  }, [user, isArtisan, accesToken]);
+  }, [user, isArtisan, token]);
 
-  // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) return (
     <div className="flex items-center justify-center min-h-screen">
       <Loader className="w-12 h-12 animate-spin" style={{ color: '#4a6fa5' }} />
     </div>
   );
 
-  // ── Non connecté ───────────────────────────────────────────────────────────
   if (!user) return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-4">
       <p className="text-lg font-semibold" style={{ color: '#2b2d42' }}>
@@ -79,9 +77,9 @@ export default function ClientProfile() {
   );
 
   const profile  = profileData ?? user;
-  const fullName = (profile.name ?? `${profile.prenom ?? ''} ${profile.nom ?? ''}`.trim()) || profile.email;
+  const fullName = `${profile.prenom ?? ''} ${profile.nom ?? ''}`.trim() || profile.email;
   const initiale = fullName.charAt(0).toUpperCase();
-  const photo    = (profile.photo_profil ?? profile.photo ?? profile.avatar) ?? null;
+  const photo    = profile.photo_profil ?? profile.photo ?? null;
   const stats    = profile.stats ?? { services: 0, appointments: 0, reviews: 0 };
   const handleLogout = () => { logout(); navigate('/'); };
 
@@ -90,14 +88,13 @@ export default function ClientProfile() {
     { id: 'info',     label: 'Informations'   },
     ...(isArtisan
       ? [{ id: 'artisan', label: 'Mon activité' }, { id: 'atelier', label: 'Mon atelier' }]
-      : [{ id: 'activity', label: 'Activité'    }]
+      : [{ id: 'activity', label: 'Activité' }]
     ),
   ];
 
   return (
     <div className="min-h-screen pt-20" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)' }}>
 
-      {/* Bannière bienvenue */}
       {isNewRegistration && (
         <div className="px-4 py-3 text-sm font-semibold text-center text-white"
           style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}>
@@ -108,9 +105,6 @@ export default function ClientProfile() {
       {/* Hero */}
       <div className="relative overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #4a6fa5 0%, #2d4a7c 100%)', borderBottom: '4px solid #ff7e5f' }}>
-        <div className="absolute inset-0 opacity-10"
-          style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.2) 0%, transparent 50%)' }} />
-
         <div className="relative px-4 py-16 mx-auto max-w-7xl sm:px-6 lg:px-8">
           <div className="flex flex-col items-center gap-8 md:flex-row md:items-end">
 
@@ -152,11 +146,6 @@ export default function ClientProfile() {
                     Membre depuis {new Date(profile.created_at).getFullYear()}
                   </span>
                 )}
-                {profile.verification_status === 'verified' && (
-                  <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-full bg-green-500/90 text-white">
-                    <Shield className="w-4 h-4" /> Compte vérifié
-                  </span>
-                )}
                 {isArtisan && profile.specialite && (
                   <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-full bg-white/20">
                     <Briefcase className="w-4 h-4" />
@@ -189,11 +178,9 @@ export default function ClientProfile() {
             { label: 'Services',    value: stats.services ?? 0,     color: '#ff7e5f', Icon: FileText },
             { label: 'Rendez-vous', value: stats.appointments ?? 0, color: '#4a6fa5', Icon: Calendar },
             { label: 'Avis',        value: stats.reviews ?? 0,      color: '#f59e0b', Icon: Star     },
-            ...(isArtisan ? [{ label: 'Note moy.', value: profile.rating ? Number(profile.rating).toFixed(1) : '–', color: '#22c55e', Icon: Award }] : []),
+            ...(isArtisan ? [{ label: 'Note moy.', value: profile.rating ? Number(profile.rating).toFixed(1) : '—', color: '#22c55e', Icon: Award }] : []),
           ].map(({ label, value, color, Icon }) => (
             <div key={label} className="relative p-6 overflow-hidden transition-all duration-300 bg-white shadow-lg rounded-2xl hover:shadow-xl hover:-translate-y-1">
-              <div className="absolute top-0 right-0 w-32 h-32 transform translate-x-8 -translate-y-8 rounded-full opacity-10"
-                style={{ background: `radial-gradient(circle, ${color}, transparent)` }} />
               <div className="relative flex items-center justify-between">
                 <div>
                   <p className="mb-1 text-sm font-semibold text-gray-500">{label}</p>
@@ -217,13 +204,6 @@ export default function ClientProfile() {
                 activeTab === tab.id ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg' : 'text-gray-600 hover:bg-gray-100'
               }`}>
               {tab.label}
-              {tab.id === 'atelier' && atelier && (
-                <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
-                  atelier.verification_status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                }`}>
-                  {atelier.verification_status === 'approved' ? '✓' : '⏳'}
-                </span>
-              )}
             </button>
           ))}
         </div>
@@ -232,17 +212,17 @@ export default function ClientProfile() {
       {/* Contenu */}
       <div className="px-4 mx-auto mt-6 mb-16 max-w-7xl sm:px-6 lg:px-8">
 
-        {/* ── Vue d'ensemble ── */}
+        {/* Vue d'ensemble */}
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="p-8 bg-white shadow-lg rounded-2xl">
               <h3 className="mb-6 text-2xl font-black text-gray-900">Actions rapides</h3>
               <div className="space-y-3">
                 {[
-                  { to: '/my-services',     Icon: FileText, label: 'Mes demandes de services', sub: 'Gérer vos demandes'           },
-                  { to: '/my-appointments', Icon: Calendar, label: 'Mes rendez-vous',           sub: 'Consulter votre agenda'       },
-                  { to: '/my-reviews',      Icon: Star,     label: 'Mes avis',                  sub: 'Voir vos évaluations'         },
-                  ...(isArtisan ? [{ to: `/artisan/${user.id}`, Icon: Hammer, label: 'Mon profil public', sub: 'Comment les clients me voient' }] : []),
+                  { to: '/my-services',     Icon: FileText, label: 'Mes demandes de services', sub: 'Gérer vos demandes'         },
+                  { to: '/my-appointments', Icon: Calendar, label: 'Mes rendez-vous',           sub: 'Consulter votre agenda'     },
+                  { to: '/my-reviews',      Icon: Star,     label: 'Mes avis',                  sub: 'Voir vos évaluations'       },
+                  ...(isArtisan ? [{ to: `/ateliers/${user.id}`, Icon: Hammer, label: 'Mon profil public', sub: 'Comment les clients me voient' }] : []),
                 ].map(({ to, Icon, label, sub }) => (
                   <Link key={to} to={to}>
                     <button className="flex items-center w-full gap-4 p-4 transition-all duration-300 border-2 border-gray-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 group">
@@ -286,7 +266,9 @@ export default function ClientProfile() {
               </div>
               <h3 className="mb-3 text-3xl font-black">{isArtisan ? 'Artisan Certifié' : 'Membre Actif'}</h3>
               <p className="text-lg text-white/90">
-                {isArtisan ? "Vous faites partie de notre réseau d'artisans professionnels" : "Vous êtes un membre actif de la communauté ArtisanConnect"}
+                {isArtisan
+                  ? "Vous faites partie de notre réseau d'artisans professionnels"
+                  : "Vous êtes un membre actif de la communauté ArtisanConnect"}
               </p>
               {isArtisan && !atelier && (
                 <button onClick={() => navigate('/atelier/create')}
@@ -298,7 +280,7 @@ export default function ClientProfile() {
           </div>
         )}
 
-        {/* ── Informations ── */}
+        {/* Informations */}
         {activeTab === 'info' && (
           <div className="p-8 bg-white shadow-lg rounded-2xl">
             <div className="flex items-center justify-between mb-8">
@@ -312,12 +294,12 @@ export default function ClientProfile() {
             </div>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               {[
-                { Icon: User,      label: 'Nom complet', value: fullName,                               show: true      },
-                { Icon: Mail,      label: 'Email',        value: profile.email,                          show: true      },
-                { Icon: Phone,     label: 'Téléphone',    value: (profile.telephone ?? profile.phone ?? '—'), show: true },
-                { Icon: Briefcase, label: 'Spécialité',   value: (profile.specialite ?? '—'),            show: isArtisan },
-                { Icon: Award,     label: 'Expérience',   value: (profile.experience_level ?? '—'),      show: isArtisan },
-                { Icon: FileText,  label: 'Bio',          value: (profile.bio ?? '—'),                   show: isArtisan },
+                { Icon: User,      label: 'Nom complet', value: fullName,                           show: true      },
+                { Icon: Mail,      label: 'Email',        value: profile.email,                      show: true      },
+                { Icon: Phone,     label: 'Téléphone',    value: profile.telephone ?? '—',           show: true      },
+                { Icon: Briefcase, label: 'Spécialité',   value: profile.specialite ?? '—',          show: isArtisan },
+                { Icon: Award,     label: 'Expérience',   value: profile.experience_level ?? '—',    show: isArtisan },
+                { Icon: FileText,  label: 'Bio',          value: profile.bio ?? '—',                 show: isArtisan },
               ].filter(f => f.show).map(({ Icon, label, value }) => (
                 <div key={label} className="p-6 transition-all duration-300 border-2 border-gray-200 rounded-xl hover:border-blue-400 hover:shadow-md">
                   <div className="flex items-start gap-4">
@@ -335,7 +317,7 @@ export default function ClientProfile() {
           </div>
         )}
 
-        {/* ── Mon activité artisan ── */}
+        {/* Mon activité artisan */}
         {activeTab === 'artisan' && isArtisan && (
           <div className="p-8 bg-white shadow-lg rounded-2xl">
             <h3 className="mb-6 text-2xl font-black text-gray-900">Mon activité artisan</h3>
@@ -352,7 +334,7 @@ export default function ClientProfile() {
           </div>
         )}
 
-        {/* ── Mon atelier ── */}
+        {/* Mon atelier */}
         {activeTab === 'atelier' && isArtisan && (
           <div className="p-8 bg-white shadow-lg rounded-2xl">
             {atelierLoad ? (
@@ -381,20 +363,6 @@ export default function ClientProfile() {
                     <div className="flex items-center gap-2 mb-3 text-sm text-gray-500">
                       <MapPin className="w-4 h-4" />{atelier.localisation}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="px-3 py-1 text-xs font-bold rounded-full" style={{ backgroundColor: 'rgba(74,111,165,0.1)', color: '#4a6fa5' }}>
-                        {atelier.domaine}
-                      </span>
-                      <span className={`px-3 py-1 text-xs font-bold rounded-full ${
-                        atelier.verification_status === 'approved' ? 'bg-green-100 text-green-700'
-                        : atelier.verification_status === 'rejected' ? 'bg-red-100 text-red-700'
-                        : 'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {atelier.verification_status === 'approved' ? '✓ Approuvé'
-                          : atelier.verification_status === 'rejected' ? '✗ Rejeté'
-                          : '⏳ En attente de validation'}
-                      </span>
-                    </div>
                   </div>
                   <button onClick={() => navigate(`/atelier/${atelier.id}/edit`)}
                     className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-xl"
@@ -402,23 +370,20 @@ export default function ClientProfile() {
                     <Edit className="w-4 h-4" /> Modifier
                   </button>
                 </div>
-
                 <p className="text-sm leading-relaxed text-gray-600">{atelier.description}</p>
-
                 {atelier.image_principale && (
                   <div className="h-48 overflow-hidden rounded-xl">
                     <img src={atelier.image_principale} alt={atelier.nom} className="object-cover w-full h-full" />
                   </div>
                 )}
-
                 {atelier.offres?.length > 0 && (
                   <div>
                     <h4 className="mb-3 font-bold text-gray-900">Mes offres ({atelier.offres.length})</h4>
                     <div className="space-y-2">
                       {atelier.offres.map(o => (
                         <div key={o.id} className="flex items-center justify-between p-3 transition-all border-2 border-gray-100 rounded-lg hover:border-blue-200">
-                          <span className="font-semibold text-gray-800">{o.titre ?? o.title}</span>
-                          <span className="font-black" style={{ color: '#ff7e5f' }}>{o.prix ?? o.price} FCFA</span>
+                          <span className="font-semibold text-gray-800">{o.titre}</span>
+                          <span className="font-black" style={{ color: '#ff7e5f' }}>{o.prix} FCFA</span>
                         </div>
                       ))}
                     </div>
@@ -429,7 +394,7 @@ export default function ClientProfile() {
           </div>
         )}
 
-        {/* ── Activité client ── */}
+        {/* Activité client */}
         {activeTab === 'activity' && !isArtisan && (
           <div className="p-8 bg-white shadow-lg rounded-2xl">
             <h3 className="mb-8 text-2xl font-black text-gray-900">Activité récente</h3>

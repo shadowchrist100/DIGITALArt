@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
-  Star, MapPin, Phone, Mail, Calendar, Clock, Award, Shield,
+  Star, MapPin, Phone, Mail, Calendar, Clock, Shield,
   MessageCircle, ChevronLeft, Heart, Share2, CheckCircle,
   Edit, Plus, Store, Hammer, AlertCircle, Loader
 } from 'lucide-react';
@@ -10,22 +10,21 @@ import Card from '../../components/Common/Card';
 import { useAuth } from '../../components/Auth/AuthContext';
 
 export default function ArtisanDetail() {
-  const { id } = useParams();
-  const navigate = useNavigate();
+  const { id }       = useParams();
+  const navigate     = useNavigate();
   const { user, accesToken } = useAuth();
 
-  const [artisan,    setArtisan]    = useState(null);
-  const [atelier,    setAtelier]    = useState(null);
-  const [loading,    setLoading]    = useState(true);
-  const [error,      setError]      = useState(null);
-  const [activeTab,  setActiveTab]  = useState('about');
-  const [selectedImg,setSelectedImg]= useState(0);
+  const [artisan,   setArtisan]   = useState(null);
+  const [atelier,   setAtelier]   = useState(null);
+  const [reviews,   setReviews]   = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState(null);
+  const [activeTab, setActiveTab] = useState('about');
 
   // L'artisan connecté consulte SA propre page ?
   const isOwnProfile = user && String(user.id) === String(id);
-  const isArtisan    = user?.role === 'ARTISAN' || user?.role === 'artisan';
 
-  // ── Charger le profil artisan ──────────────────────────────────────────────
+  // ── Charger le profil artisan
   useEffect(() => {
     const fetchArtisan = async () => {
       setLoading(true);
@@ -47,25 +46,18 @@ export default function ArtisanDetail() {
     fetchArtisan();
   }, [id]);
 
-  // ── Charger l'atelier ──────────────────────────────────────────────────────
+  // ── Charger l'atelier
   useEffect(() => {
     const fetchAtelier = async () => {
       try {
-        // Si c'est son propre profil → endpoint privé (avec auth)
-        // Sinon → endpoint public
-        const url = isOwnProfile
-          ? '/api/atelier/mine'
-          : `/api/artisans/${id}/atelier`;
-
+        const url     = isOwnProfile ? '/api/atelier/mine' : `/api/artisans/${id}/atelier`;
         const headers = { Accept: 'application/json' };
-        if (isOwnProfile && accesToken) {
-          headers['Authorization'] = `Bearer ${accesToken}`;
-        }
+        if (isOwnProfile && accesToken) headers['Authorization'] = `Bearer ${accesToken}`;
 
         const res = await fetch(url, { headers, credentials: 'include' });
         if (!res.ok) return;
         const data = await res.json();
-        setAtelier(data.atelier ?? null);
+        setAtelier(data.atelier ?? data ?? null);
       } catch {
         // Pas d'atelier = normal
       }
@@ -73,21 +65,41 @@ export default function ArtisanDetail() {
     fetchAtelier();
   }, [id, isOwnProfile, accesToken]);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-  const fullName  = artisan
+  // ── Charger les avis (vue client uniquement, à la demande)
+  useEffect(() => {
+    if (isOwnProfile || activeTab !== 'reviews') return;
+
+    const fetchReviews = async () => {
+      try {
+        const res = await fetch(`/api/artisans/${id}/avis`, {
+          headers: { Accept: 'application/json' },
+          credentials: 'include',
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setReviews(data.avis ?? data.reviews ?? data.data ?? []);
+      } catch {
+        // Silencieux — on affiche juste "Aucun avis"
+      }
+    };
+    fetchReviews();
+  }, [id, activeTab, isOwnProfile]);
+
+  // ── Helpers
+  const fullName = artisan
     ? (artisan.name ?? `${artisan.prenom ?? ''} ${artisan.nom ?? ''}`.trim())
     : '';
-  const initiale  = fullName.charAt(0).toUpperCase();
-  const photo     = artisan?.photo ?? artisan?.photo_profil ?? artisan?.image ?? null;
+  const initiale = fullName.charAt(0).toUpperCase();
+  const photo    = artisan?.photo ?? artisan?.photo_profil ?? artisan?.image ?? null;
 
-  // ── Loading ────────────────────────────────────────────────────────────────
+  // ── Loading
   if (loading) return (
     <div className="flex items-center justify-center min-h-screen">
       <Loader className="w-10 h-10 animate-spin" style={{ color: '#4a6fa5' }} />
     </div>
   );
 
-  // ── Erreur ─────────────────────────────────────────────────────────────────
+  // ── Erreur
   if (error || !artisan) return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-4">
       <AlertCircle className="w-12 h-12" style={{ color: '#ff7e5f' }} />
@@ -103,19 +115,18 @@ export default function ArtisanDetail() {
     </div>
   );
 
-  // ── Tabs selon la vue ──────────────────────────────────────────────────────
+  // ── Tabs
+  const reviewCount = artisan.reviews ?? reviews.length ?? 0;
   const tabs = isOwnProfile
     ? [
-        { id: 'about',   label: 'Mon profil' },
+        { id: 'about',   label: 'Mon profil'                            },
         { id: 'atelier', label: atelier ? 'Mon atelier' : 'Créer mon atelier' },
       ]
     : [
-        { id: 'about',   label: 'À propos' },
+        { id: 'about',   label: 'À propos'                             },
         ...(atelier ? [{ id: 'atelier', label: 'Atelier & Offres' }] : []),
-        { id: 'reviews', label: `Avis (${artisan.reviews ?? 0})` },
+        { id: 'reviews', label: `Avis (${reviewCount})`               },
       ];
-
-  const gallery = atelier?.photos ?? (photo ? [photo] : []);
 
   return (
     <div className="min-h-screen pt-24 pb-20" style={{ backgroundColor: '#f8fafc' }}>
@@ -132,19 +143,17 @@ export default function ArtisanDetail() {
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
 
-          {/* ── Colonne principale ── */}
+          {/* ── Colonne principale */}
           <div className="space-y-8 lg:col-span-2">
 
             {/* Hero Card */}
             <div className="overflow-hidden bg-white shadow-lg rounded-2xl">
 
-              {/* Banner / Photo */}
-              <div className="relative h-64" style={{ background: 'linear-gradient(135deg, #4a6fa5 0%, #2d4a7c 100%)' }}>
-                {photo ? (
+              {/* Banner */}
+              <div className="relative h-64"
+                style={{ background: 'linear-gradient(135deg, #4a6fa5 0%, #2d4a7c 100%)' }}>
+                {photo && (
                   <img src={photo} alt={fullName} className="object-cover w-full h-full opacity-30" />
-                ) : (
-                  <div className="absolute inset-0 opacity-10"
-                    style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.3) 0%, transparent 50%)' }} />
                 )}
 
                 {/* Badges */}
@@ -175,7 +184,7 @@ export default function ArtisanDetail() {
                   </div>
                 )}
 
-                {/* Bouton édition (vue artisan) */}
+                {/* Bouton édition (vue propre profil) */}
                 {isOwnProfile && (
                   <div className="absolute top-4 right-4">
                     <Link to="/profile/edit">
@@ -225,7 +234,7 @@ export default function ArtisanDetail() {
                         ))}
                       </div>
                       <div className="text-xs" style={{ color: '#2b2d42', opacity: 0.5 }}>
-                        {artisan.reviews ?? 0} avis
+                        {reviewCount} avis
                       </div>
                     </div>
                   )}
@@ -234,9 +243,9 @@ export default function ArtisanDetail() {
                 {/* Stats */}
                 <div className="grid grid-cols-3 gap-4">
                   {[
-                    { label: "ans d'expérience", value: artisan.experience ?? '–', color: '#4a6fa5', bg: 'rgba(74,111,165,0.1)' },
-                    { label: 'projets réalisés',  value: artisan.completedProjects ?? '–', color: '#ff7e5f', bg: 'rgba(255,126,95,0.1)' },
-                    { label: 'satisfaction',       value: '98%', color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
+                    { label: "ans d'expérience", value: artisan.experience ?? '–',         color: '#4a6fa5', bg: 'rgba(74,111,165,0.1)'  },
+                    { label: 'projets réalisés',  value: artisan.completedProjects ?? artisan.projets_termines ?? '–', color: '#ff7e5f', bg: 'rgba(255,126,95,0.1)' },
+                    { label: 'satisfaction',      value: artisan.satisfaction ?? '98%',    color: '#22c55e', bg: 'rgba(34,197,94,0.1)'   },
                   ].map(({ label, value, color, bg }) => (
                     <div key={label} className="p-4 text-center rounded-xl" style={{ backgroundColor: bg }}>
                       <div className="text-2xl font-black" style={{ color }}>{value}</div>
@@ -254,7 +263,7 @@ export default function ArtisanDetail() {
                   <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                     className="px-6 py-4 text-sm font-bold transition-all whitespace-nowrap"
                     style={{
-                      color: activeTab === tab.id ? '#4a6fa5' : '#2b2d42',
+                      color:        activeTab === tab.id ? '#4a6fa5' : '#2b2d42',
                       borderBottom: activeTab === tab.id ? '3px solid #4a6fa5' : '3px solid transparent',
                     }}>
                     {tab.label}
@@ -264,10 +273,10 @@ export default function ArtisanDetail() {
 
               <div className="p-8">
 
-                {/* ── Onglet À propos ── */}
+                {/* ── Onglet À propos */}
                 {activeTab === 'about' && (
                   <div className="space-y-6">
-                    {artisan.bio && (
+                    {artisan.bio ? (
                       <div>
                         <h3 className="mb-3 text-xl font-bold" style={{ color: '#2b2d42' }}>
                           {isOwnProfile ? 'Ma biographie' : `À propos de ${fullName}`}
@@ -276,9 +285,7 @@ export default function ArtisanDetail() {
                           {artisan.bio}
                         </p>
                       </div>
-                    )}
-
-                    {!artisan.bio && isOwnProfile && (
+                    ) : isOwnProfile ? (
                       <div className="p-4 text-center border-2 border-dashed rounded-xl" style={{ borderColor: '#e9ecef' }}>
                         <p className="mb-3 text-sm" style={{ color: '#2b2d42', opacity: 0.5 }}>
                           Vous n'avez pas encore de biographie.
@@ -290,26 +297,25 @@ export default function ArtisanDetail() {
                           </button>
                         </Link>
                       </div>
-                    )}
+                    ) : null}
 
-                    {artisan.specialite && (
+                    {(artisan.specialite ?? artisan.specialty) && (
                       <div>
                         <h3 className="mb-3 text-xl font-bold" style={{ color: '#2b2d42' }}>Spécialité</h3>
                         <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-full"
                           style={{ backgroundColor: 'rgba(74,111,165,0.1)', color: '#4a6fa5' }}>
                           <Hammer className="w-4 h-4" />
-                          {artisan.specialite}
+                          {artisan.specialite ?? artisan.specialty}
                         </span>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* ── Onglet Atelier ── */}
+                {/* ── Onglet Atelier */}
                 {activeTab === 'atelier' && (
                   <div>
-                    {/* Vue artisan connecté sans atelier */}
-                    {isOwnProfile && !atelier && (
+                    {isOwnProfile && !atelier ? (
                       <div className="py-12 text-center">
                         <div className="flex items-center justify-center w-20 h-20 mx-auto mb-6 rounded-full"
                           style={{ backgroundColor: 'rgba(255,126,95,0.1)' }}>
@@ -319,26 +325,20 @@ export default function ArtisanDetail() {
                           Vous n'avez pas encore d'atelier
                         </h3>
                         <p className="mb-6 text-sm" style={{ color: '#2b2d42', opacity: 0.6 }}>
-                          Créez votre atelier pour exposer vos produits et services aux clients
+                          Créez votre atelier pour exposer vos services aux clients
                         </p>
                         <button onClick={() => navigate('/atelier/create')}
                           className="inline-flex items-center gap-2 px-8 py-4 font-bold text-white transition-all rounded-xl hover:shadow-lg hover:scale-105"
                           style={{ background: 'linear-gradient(135deg, #ff7e5f, #feb47b)' }}>
-                          <Plus className="w-5 h-5" />
-                          Créer mon atelier
+                          <Plus className="w-5 h-5" /> Créer mon atelier
                         </button>
                       </div>
-                    )}
-
-                    {/* Atelier existant */}
-                    {atelier && (
+                    ) : atelier ? (
                       <div className="space-y-6">
                         {/* Header atelier */}
                         <div className="flex items-start justify-between">
                           <div>
-                            <h3 className="mb-1 text-2xl font-black" style={{ color: '#2b2d42' }}>
-                              {atelier.nom}
-                            </h3>
+                            <h3 className="mb-1 text-2xl font-black" style={{ color: '#2b2d42' }}>{atelier.nom}</h3>
                             <div className="flex items-center gap-2 mb-2 text-sm" style={{ color: '#2b2d42', opacity: 0.6 }}>
                               <MapPin className="w-4 h-4" />{atelier.localisation}
                             </div>
@@ -347,14 +347,11 @@ export default function ArtisanDetail() {
                               {atelier.domaine}
                             </span>
 
-                            {/* Badge statut (vue artisan) */}
                             {isOwnProfile && (
                               <span className={`ml-2 px-3 py-1 text-xs font-bold rounded-full ${
-                                atelier.verification_status === 'approved'
-                                  ? 'bg-green-100 text-green-700'
-                                  : atelier.verification_status === 'rejected'
-                                  ? 'bg-red-100 text-red-700'
-                                  : 'bg-yellow-100 text-yellow-700'
+                                atelier.verification_status === 'approved' ? 'bg-green-100 text-green-700'
+                                : atelier.verification_status === 'rejected' ? 'bg-red-100 text-red-700'
+                                : 'bg-yellow-100 text-yellow-700'
                               }`}>
                                 {atelier.verification_status === 'approved' ? '✓ Approuvé'
                                   : atelier.verification_status === 'rejected' ? '✗ Rejeté'
@@ -372,12 +369,12 @@ export default function ArtisanDetail() {
                           )}
                         </div>
 
-                        {/* Description */}
-                        <p className="text-sm leading-relaxed" style={{ color: '#2b2d42', opacity: 0.8 }}>
-                          {atelier.description}
-                        </p>
+                        {atelier.description && (
+                          <p className="text-sm leading-relaxed" style={{ color: '#2b2d42', opacity: 0.8 }}>
+                            {atelier.description}
+                          </p>
+                        )}
 
-                        {/* Image principale */}
                         {atelier.image_principale && (
                           <div className="h-56 overflow-hidden rounded-xl">
                             <img src={atelier.image_principale} alt={atelier.nom}
@@ -386,18 +383,21 @@ export default function ArtisanDetail() {
                         )}
 
                         {/* Offres */}
-                        {atelier.offres && atelier.offres.length > 0 && (
+                        {atelier.offres?.length > 0 && (
                           <div>
-                            <h4 className="mb-4 text-lg font-bold" style={{ color: '#2b2d42' }}>
-                              Offres de services
-                            </h4>
+                            <h4 className="mb-4 text-lg font-bold" style={{ color: '#2b2d42' }}>Offres de services</h4>
                             <div className="space-y-3">
                               {atelier.offres.map(offre => (
-                                <div key={offre.id} className="flex items-start justify-between p-4 transition-all border-2 rounded-xl hover:shadow-md"
+                                <div key={offre.id}
+                                  className="flex items-start justify-between p-4 transition-all border-2 rounded-xl hover:shadow-md"
                                   style={{ borderColor: '#e9ecef' }}>
                                   <div>
-                                    <div className="mb-1 font-bold" style={{ color: '#2b2d42' }}>{offre.titre ?? offre.title}</div>
-                                    <div className="text-sm" style={{ color: '#2b2d42', opacity: 0.6 }}>{offre.description}</div>
+                                    <div className="mb-1 font-bold" style={{ color: '#2b2d42' }}>
+                                      {offre.titre ?? offre.title}
+                                    </div>
+                                    <div className="text-sm" style={{ color: '#2b2d42', opacity: 0.6 }}>
+                                      {offre.description}
+                                    </div>
                                   </div>
                                   <div className="ml-4 text-right">
                                     <div className="text-lg font-black" style={{ color: '#ff7e5f' }}>
@@ -417,7 +417,7 @@ export default function ArtisanDetail() {
                         )}
 
                         {/* Avis sur l'atelier */}
-                        {atelier.avis && atelier.avis.length > 0 && (
+                        {atelier.avis?.length > 0 && (
                           <div>
                             <h4 className="mb-4 text-lg font-bold" style={{ color: '#2b2d42' }}>Avis clients</h4>
                             <div className="space-y-3">
@@ -429,50 +429,57 @@ export default function ArtisanDetail() {
                                     </span>
                                     <div className="flex items-center">
                                       {[...Array(5)].map((_, i) => (
-                                        <Star key={i} className={`w-3 h-3 ${i < avis.note ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
+                                        <Star key={i} className={`w-3 h-3 ${i < (avis.note ?? avis.rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
                                       ))}
                                     </div>
                                   </div>
-                                  <p className="text-sm" style={{ color: '#2b2d42', opacity: 0.7 }}>{avis.commentaire}</p>
+                                  <p className="text-sm" style={{ color: '#2b2d42', opacity: 0.7 }}>
+                                    {avis.commentaire ?? avis.comment}
+                                  </p>
                                 </div>
                               ))}
                             </div>
                           </div>
                         )}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 )}
 
-                {/* ── Onglet Avis (vue client) ── */}
+                {/* ── Onglet Avis (vue client) — chargés depuis API */}
                 {activeTab === 'reviews' && !isOwnProfile && (
                   <div className="space-y-4">
-                    {artisan.customerReviews && artisan.customerReviews.length > 0 ? (
-                      artisan.customerReviews.map((review) => (
-                        <div key={review.id} className="flex items-start gap-4 p-4 rounded-xl"
-                          style={{ backgroundColor: '#f8f9fa' }}>
-                          <div className="flex items-center justify-center flex-shrink-0 w-12 h-12 font-bold text-white rounded-full"
-                            style={{ backgroundColor: '#4a6fa5' }}>
-                            {review.author?.[0] ?? '?'}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="font-bold" style={{ color: '#2b2d42' }}>{review.author}</span>
-                              <div className="flex items-center">
-                                {[...Array(5)].map((_, i) => (
-                                  <Star key={i} className={`w-4 h-4 ${i < review.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
-                                ))}
-                              </div>
+                    {reviews.length > 0 ? (
+                      reviews.map(review => {
+                        const author  = review.author ?? review.user?.prenom ?? review.user?.name ?? 'Client';
+                        const rating  = review.rating ?? review.note ?? 0;
+                        const comment = review.comment ?? review.commentaire ?? '';
+                        return (
+                          <div key={review.id} className="flex items-start gap-4 p-4 rounded-xl"
+                            style={{ backgroundColor: '#f8f9fa' }}>
+                            <div className="flex items-center justify-center flex-shrink-0 w-12 h-12 font-bold text-white rounded-full"
+                              style={{ backgroundColor: '#4a6fa5' }}>
+                              {author[0]?.toUpperCase() ?? '?'}
                             </div>
-                            <p className="text-sm" style={{ color: '#2b2d42', opacity: 0.7 }}>{review.comment}</p>
-                            {review.verified && (
-                              <div className="flex items-center gap-1 mt-2 text-xs font-bold" style={{ color: '#22c55e' }}>
-                                <CheckCircle className="w-3 h-3" /> Avis vérifié
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-bold" style={{ color: '#2b2d42' }}>{author}</span>
+                                <div className="flex items-center">
+                                  {[...Array(5)].map((_, i) => (
+                                    <Star key={i} className={`w-4 h-4 ${i < rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
+                                  ))}
+                                </div>
                               </div>
-                            )}
+                              <p className="text-sm" style={{ color: '#2b2d42', opacity: 0.7 }}>{comment}</p>
+                              {review.verified && (
+                                <div className="flex items-center gap-1 mt-2 text-xs font-bold" style={{ color: '#22c55e' }}>
+                                  <CheckCircle className="w-3 h-3" /> Avis vérifié
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="py-10 text-center">
                         <Star className="w-10 h-10 mx-auto mb-3" style={{ color: '#4a6fa5', opacity: 0.3 }} />
@@ -485,10 +492,9 @@ export default function ArtisanDetail() {
             </div>
           </div>
 
-          {/* ── Sidebar ── */}
+          {/* ── Sidebar */}
           <div className="space-y-6 lg:col-span-1">
 
-            {/* Vue artisan connecté */}
             {isOwnProfile ? (
               <>
                 <div className="p-6 bg-white shadow-lg rounded-2xl">
@@ -528,7 +534,6 @@ export default function ArtisanDetail() {
                 </div>
               </>
             ) : (
-              /* Vue client */
               <>
                 <div className="p-6 bg-white shadow-lg rounded-2xl">
                   <h3 className="mb-4 text-xl font-bold" style={{ color: '#2b2d42' }}>Contacter l'artisan</h3>
@@ -542,13 +547,15 @@ export default function ArtisanDetail() {
                         </div>
                       </div>
                     )}
-                    <div className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: '#f8f9fa' }}>
-                      <Mail className="w-5 h-5" style={{ color: '#4a6fa5' }} />
-                      <div>
-                        <div className="text-xs" style={{ color: '#2b2d42', opacity: 0.5 }}>Email</div>
-                        <div className="text-sm font-bold" style={{ color: '#2b2d42' }}>{artisan.email}</div>
+                    {artisan.email && (
+                      <div className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: '#f8f9fa' }}>
+                        <Mail className="w-5 h-5" style={{ color: '#4a6fa5' }} />
+                        <div>
+                          <div className="text-xs" style={{ color: '#2b2d42', opacity: 0.5 }}>Email</div>
+                          <div className="text-sm font-bold" style={{ color: '#2b2d42' }}>{artisan.email}</div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                   <div className="space-y-3">
                     <Link to={`/appointments/book/${id}`} className="block">
@@ -574,9 +581,9 @@ export default function ArtisanDetail() {
                   <h3 className="mb-4 text-lg font-bold" style={{ color: '#2b2d42' }}>Garanties</h3>
                   <div className="space-y-3">
                     {[
-                      { Icon: CheckCircle, color: '#22c55e', title: 'Travail garanti',       sub: 'Satisfaction 30 jours' },
-                      { Icon: Shield,      color: '#4a6fa5', title: 'Professionnel vérifié', sub: 'Identité et qualifications' },
-                      { Icon: Star,        color: '#fbbf24', title: 'Service de qualité',    sub: `Note ${artisan.rating ?? '–'}/5` },
+                      { Icon: CheckCircle, color: '#22c55e', title: 'Travail garanti',       sub: 'Satisfaction 30 jours'              },
+                      { Icon: Shield,      color: '#4a6fa5', title: 'Professionnel vérifié', sub: 'Identité et qualifications'         },
+                      { Icon: Star,        color: '#fbbf24', title: 'Service de qualité',    sub: `Note ${artisan.rating ?? '–'}/5`   },
                     ].map(({ Icon, color, title, sub }) => (
                       <div key={title} className="flex items-start gap-3">
                         <Icon className="flex-shrink-0 w-5 h-5 mt-0.5" style={{ color }} />

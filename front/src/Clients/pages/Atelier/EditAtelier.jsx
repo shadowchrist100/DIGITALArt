@@ -9,12 +9,24 @@ import { useAuth } from '../../components/Auth/AuthContext';
 const DOMAINES = [
   'Plomberie', 'Électricité', 'Menuiserie', 'Peinture', 'Maçonnerie',
   'Couture', 'Coiffure', 'Mécanique', 'Électronique', 'Jardinage',
-  'Nettoyage', 'Cuisine', 'Photographie', 'Informatique', 'Autre'
+  'Nettoyage', 'Cuisine', 'Photographie', 'Informatique', 'Autre',
 ];
 
+// ── Badge statut extrait du composant (évite recréation à chaque render)
+function StatusBadge({ status }) {
+  if (!status) return null;
+  const config = {
+    approved: { label: '✓ Approuvé',  cls: 'bg-green-100 text-green-700'   },
+    rejected: { label: '✗ Rejeté',    cls: 'bg-red-100 text-red-700'       },
+    pending:  { label: '⏳ En attente', cls: 'bg-yellow-100 text-yellow-700' },
+  };
+  const c = config[status] ?? config.pending;
+  return <span className={`px-3 py-1 text-sm font-bold rounded-full ${c.cls}`}>{c.label}</span>;
+}
+
 export default function EditAtelier() {
-  const { id }      = useParams();
-  const navigate    = useNavigate();
+  const { id }         = useParams();
+  const navigate       = useNavigate();
   const { accesToken } = useAuth();
 
   const [form, setForm] = useState({
@@ -25,18 +37,22 @@ export default function EditAtelier() {
     image_principale: '',
   });
 
-  const [loading,      setLoading]      = useState(false);
-  const [fetching,     setFetching]     = useState(true);
-  const [success,      setSuccess]      = useState(false);
-  const [errors,       setErrors]       = useState({});
-  const [apiError,     setApiError]     = useState(null);
-  const [showDelete,   setShowDelete]   = useState(false);
-  const [deleting,     setDeleting]     = useState(false);
-  const [statusBadge,  setStatusBadge]  = useState(null);
+  const [loading,    setLoading]    = useState(false);
+  const [fetching,   setFetching]   = useState(true);
+  const [success,    setSuccess]    = useState(false);
+  const [errors,     setErrors]     = useState({});
+  const [apiError,   setApiError]   = useState(null);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleting,   setDeleting]   = useState(false);
+  const [statusBadge,setStatusBadge]= useState(null);
+  // Stocker l'id réel de l'atelier (chargé depuis /api/atelier/mine)
+  const [atelierId,  setAtelierId]  = useState(id ?? null);
 
-  // ── Charger l'atelier existant ─────────────────────────────────────────────
+  // ── Charger l'atelier existant
+  // On utilise /api/atelier/mine (pas besoin de l'id en URL pour le GET)
   useEffect(() => {
     if (!accesToken) return;
+
     const fetchAtelier = async () => {
       setFetching(true);
       try {
@@ -48,9 +64,10 @@ export default function EditAtelier() {
           credentials: 'include',
         });
         if (!res.ok) throw new Error('Atelier introuvable');
-        const data = await res.json();
+        const data    = await res.json();
         const atelier = data.atelier ?? data;
 
+        setAtelierId(atelier.id ?? id);
         setForm({
           nom:              atelier.nom              ?? '',
           domaine:          atelier.domaine          ?? '',
@@ -65,21 +82,23 @@ export default function EditAtelier() {
         setFetching(false);
       }
     };
-    fetchAtelier();
-  }, [id, accesToken]);
 
-  // ── Validation ─────────────────────────────────────────────────────────────
+    fetchAtelier();
+  }, [accesToken]); // id retiré des dépendances — on charge toujours via /mine
+
+  // ── Validation
   const validate = () => {
     const e = {};
     if (!form.nom.trim())          e.nom          = 'Le nom est requis';
     if (!form.domaine)             e.domaine      = 'Le domaine est requis';
     if (!form.localisation.trim()) e.localisation = 'La localisation est requise';
     if (!form.description.trim())  e.description  = 'La description est requise';
-    if (form.description.trim().length < 20) e.description = 'Description trop courte (min 20 caractères)';
+    else if (form.description.trim().length < 20)
+      e.description = 'Description trop courte (min 20 caractères)';
     return e;
   };
 
-  // ── Soumission ─────────────────────────────────────────────────────────────
+  // ── Soumission
   const handleSubmit = async () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
@@ -88,7 +107,7 @@ export default function EditAtelier() {
     setApiError(null);
 
     try {
-      const res = await fetch(`/api/atelier/${id}`, {
+      const res = await fetch(`/api/atelier/${atelierId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -128,11 +147,11 @@ export default function EditAtelier() {
     }
   };
 
-  // ── Suppression ────────────────────────────────────────────────────────────
+  // ── Suppression
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      const res = await fetch(`/api/atelier/${id}`, {
+      const res = await fetch(`/api/atelier/${atelierId}`, {
         method: 'DELETE',
         headers: {
           Accept:        'application/json',
@@ -155,28 +174,25 @@ export default function EditAtelier() {
     if (errors[key]) setErrors(prev => ({ ...prev, [key]: null }));
   };
 
-  // ── Status badge ───────────────────────────────────────────────────────────
-  const StatusBadge = () => {
-    if (!statusBadge) return null;
-    const config = {
-      approved: { label: '✓ Approuvé',           cls: 'bg-green-100 text-green-700'  },
-      rejected: { label: '✗ Rejeté',              cls: 'bg-red-100 text-red-700'      },
-      pending:  { label: '⏳ En attente',          cls: 'bg-yellow-100 text-yellow-700'},
-    };
-    const c = config[statusBadge] ?? config.pending;
-    return (
-      <span className={`px-3 py-1 text-sm font-bold rounded-full ${c.cls}`}>{c.label}</span>
-    );
-  };
-
-  // ── Chargement ─────────────────────────────────────────────────────────────
+  // ── Chargement
   if (fetching) return (
     <div className="flex items-center justify-center min-h-screen">
       <Loader className="w-10 h-10 animate-spin" style={{ color: '#4a6fa5' }} />
     </div>
   );
 
-  // ── Succès ─────────────────────────────────────────────────────────────────
+  // ── Erreur de chargement
+  if (apiError && !form.nom) return (
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+      <p className="font-semibold text-red-600">⚠️ {apiError}</p>
+      <Link to="/profile" className="px-6 py-3 font-bold text-white rounded-xl"
+        style={{ background: 'linear-gradient(135deg, #4a6fa5, #3a5784)' }}>
+        Retour au profil
+      </Link>
+    </div>
+  );
+
+  // ── Succès
   if (success) return (
     <div className="flex items-center justify-center min-h-screen"
       style={{ background: 'linear-gradient(135deg, #f8fafc, #e2e8f0)' }}>
@@ -217,24 +233,24 @@ export default function EditAtelier() {
             </h1>
             <div className="flex items-center gap-3">
               <p className="text-gray-500">Mettez à jour les informations de votre atelier</p>
-              <StatusBadge />
+              <StatusBadge status={statusBadge} />
             </div>
           </div>
         </div>
 
-        {/* Avertissement modification */}
+        {/* Avertissement si atelier approuvé */}
         {statusBadge === 'approved' && (
           <div className="flex items-start gap-3 p-4 mb-6 border-2 rounded-xl"
             style={{ backgroundColor: 'rgba(251,191,36,0.05)', borderColor: 'rgba(251,191,36,0.3)' }}>
-            <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0 text-yellow-500" />
+            <AlertTriangle className="flex-shrink-0 w-5 h-5 mt-0.5 text-yellow-500" />
             <p className="text-sm text-yellow-700">
               Toute modification repassera votre atelier en attente de validation.
             </p>
           </div>
         )}
 
-        {/* Erreur API */}
-        {apiError && (
+        {/* Erreur API (hors erreur de chargement) */}
+        {apiError && form.nom && (
           <div className="p-4 mb-6 text-sm font-semibold text-red-700 border-2 border-red-200 bg-red-50 rounded-xl">
             ⚠️ {apiError}
           </div>
@@ -254,8 +270,7 @@ export default function EditAtelier() {
                   style={{ color: '#4a6fa5', opacity: 0.5 }} />
                 <input type="text" value={form.nom}
                   onChange={(e) => handleChange('nom', e.target.value)}
-                  placeholder="Ex: Atelier Kouassi Plomberie"
-                  maxLength={150}
+                  placeholder="Ex: Atelier Kouassi Plomberie" maxLength={150}
                   className={`w-full h-12 pl-12 pr-4 border-2 rounded-xl outline-none transition-all ${
                     errors.nom ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-blue-400'
                   }`}
@@ -272,8 +287,7 @@ export default function EditAtelier() {
               <div className="relative">
                 <Briefcase className="absolute w-5 h-5 -translate-y-1/2 pointer-events-none left-4 top-1/2"
                   style={{ color: '#4a6fa5', opacity: 0.5 }} />
-                <select value={form.domaine}
-                  onChange={(e) => handleChange('domaine', e.target.value)}
+                <select value={form.domaine} onChange={(e) => handleChange('domaine', e.target.value)}
                   className={`w-full h-12 pl-12 pr-4 border-2 rounded-xl outline-none appearance-none transition-all ${
                     errors.domaine ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-blue-400'
                   }`}
@@ -295,8 +309,7 @@ export default function EditAtelier() {
                   style={{ color: '#4a6fa5', opacity: 0.5 }} />
                 <input type="text" value={form.localisation}
                   onChange={(e) => handleChange('localisation', e.target.value)}
-                  placeholder="Ex: Cotonou, Bénin"
-                  maxLength={255}
+                  placeholder="Ex: Cotonou, Bénin" maxLength={255}
                   className={`w-full h-12 pl-12 pr-4 border-2 rounded-xl outline-none transition-all ${
                     errors.localisation ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-blue-400'
                   }`}
@@ -315,8 +328,7 @@ export default function EditAtelier() {
                   style={{ color: '#4a6fa5', opacity: 0.5 }} />
                 <textarea value={form.description}
                   onChange={(e) => handleChange('description', e.target.value)}
-                  placeholder="Décrivez vos services, votre expérience..."
-                  rows={5}
+                  placeholder="Décrivez vos services, votre expérience..." rows={5}
                   className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl outline-none resize-none transition-all ${
                     errors.description ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-blue-400'
                   }`}
@@ -373,7 +385,7 @@ export default function EditAtelier() {
           </div>
         </div>
 
-        {/* Zone danger - Supprimer l'atelier */}
+        {/* Zone danger */}
         <div className="p-6 mt-6 bg-white border-2 border-red-100 shadow-lg rounded-2xl">
           <h3 className="mb-2 text-lg font-bold text-red-600">Zone de danger</h3>
           <p className="mb-4 text-sm text-gray-500">

@@ -1,27 +1,18 @@
 import { Navigate } from 'react-router-dom';
-import { authService } from '../Admin/services/authService';
+import { useAuth } from '../Clients/components/Auth/AuthContext';
 
 export default function ProtectedRoute({ children, allowedRoles = [] }) {
-  const isAuthenticated = authService.isAuthenticated();
-  const currentUser = authService.getCurrentUser();
+  const { user, accesToken } = useAuth();
 
-  // Si pas connecté, rediriger vers login
-  if (!isAuthenticated) {
+  // Pas connecté → login
+  if (!accesToken || !user) {
     return <Navigate to="/login" replace />;
   }
 
-  // Si des rôles sont spécifiés et que l'utilisateur n'a pas le bon rôle
-  if (allowedRoles.length > 0 && currentUser) {
-    if (!allowedRoles.includes(currentUser.role)) {
-      // Rediriger vers la page appropriée selon le rôle
-      if (currentUser.role === 'CLIENT') {
-        return <Navigate to="/" replace />;
-      }
-      if (currentUser.role === 'ARTISAN') {
-        return <Navigate to="/artisan/dashboard" replace />;
-      }
-      return <Navigate to="/" replace />;
-    }
+  // Rôle non autorisé
+  if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+    if (user.role === 'ADMIN') return <Navigate to="/admin/dashboard" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return children;

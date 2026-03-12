@@ -1,22 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  ArrowLeft, User, Mail, Phone, MapPin, Save,
+  ArrowLeft, User, Mail, Phone, Save,
   Camera, CheckCircle, Loader, Briefcase, Award, FileText
 } from 'lucide-react';
 import { useAuth } from '../../components/Auth/AuthContext';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
 const EXPERIENCE_LEVELS = [
-  { value: 'debutant',      label: 'Débutant (0-2 ans)'     },
-  { value: 'intermediaire', label: 'Intermédiaire (3-5 ans)' },
-  { value: 'expert',        label: 'Expert (6+ ans)'         },
+  { value: 'debutant',      label: 'Débutant (0-2 ans)'      },
+  { value: 'intermediaire', label: 'Intermédiaire (3-5 ans)'  },
+  { value: 'expert',        label: 'Expert (6+ ans)'          },
 ];
 
 export default function EditProfile() {
   const navigate = useNavigate();
-  const { user, accesToken, login } = useAuth();
+  const { user, token, login } = useAuth();
 
-  const isArtisan = user?.role === 'ARTISAN' || user?.role === 'artisan';
+  const isArtisan = user?.role === 'ARTISAN';
 
   const [loading,  setLoading]  = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -37,34 +39,60 @@ export default function EditProfile() {
 
   const [photoPreview, setPhotoPreview] = useState(null);
 
-  // ── Charger les données actuelles ──────────────────────────────────────────
+  // Charger les données actuelles depuis GET /profil
   useEffect(() => {
-    if (!user) return;
-    setForm({
-      prenom:           user.prenom           ?? '',
-      nom:              user.nom              ?? '',
-      email:            user.email            ?? '',
-      telephone:        user.telephone ?? user.phone ?? '',
-      bio:              user.bio              ?? '',
-      specialite:       user.specialite       ?? '',
-      experience_level: user.experience_level ?? '',
-      photo_profil:     user.photo_profil     ?? '',
-    });
-    setPhotoPreview(user.photo_profil ?? user.photo ?? null);
-    setFetching(false);
-  }, [user]);
+    if (!user || !token) return;
 
-  // ── Validation ─────────────────────────────────────────────────────────────
+    const fetchProfile = async () => {
+      try {
+        const res = await fetch(`${API_URL}/profil`, {
+          headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+        });
+        const data = res.ok ? (await res.json()) : null;
+        const profile = data?.user ?? data ?? user;
+
+        setForm({
+          prenom:           profile.prenom           ?? '',
+          nom:              profile.nom              ?? '',
+          email:            profile.email            ?? '',
+          telephone:        profile.telephone        ?? '',
+          bio:              profile.bio              ?? '',
+          specialite:       profile.specialite       ?? '',
+          experience_level: profile.experience_level ?? '',
+          photo_profil:     profile.photo_profil     ?? '',
+        });
+        setPhotoPreview(profile.photo_profil ?? profile.photo ?? null);
+      } catch {
+        // fallback sur le contexte
+        setForm({
+          prenom:           user.prenom           ?? '',
+          nom:              user.nom              ?? '',
+          email:            user.email            ?? '',
+          telephone:        user.telephone        ?? '',
+          bio:              user.bio              ?? '',
+          specialite:       user.specialite       ?? '',
+          experience_level: user.experience_level ?? '',
+          photo_profil:     user.photo_profil     ?? '',
+        });
+        setPhotoPreview(user.photo_profil ?? user.photo ?? null);
+      } finally {
+        setFetching(false);
+      }
+    };
+
+    fetchProfile();
+  }, [user, token]);
+
   const validate = () => {
     const e = {};
-    if (!form.prenom.trim())  e.prenom = 'Le prénom est requis';
-    if (!form.nom.trim())     e.nom    = 'Le nom est requis';
-    if (!form.email.trim())   e.email  = 'L\'email est requis';
+    if (!form.prenom.trim()) e.prenom = 'Le prénom est requis';
+    if (!form.nom.trim())    e.nom    = 'Le nom est requis';
+    if (!form.email.trim())  e.email  = "L'email est requis";
     else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Email invalide';
     return e;
   };
 
-  // ── Soumission ─────────────────────────────────────────────────────────────
+  // POST /profil (méthode POST avec _method=PUT ou directement POST selon le back)
   const handleSubmit = async () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
@@ -76,8 +104,8 @@ export default function EditProfile() {
       const payload = {
         prenom:    form.prenom.trim(),
         nom:       form.nom.trim(),
-        bio:       form.bio.trim()       || null,
         telephone: form.telephone.trim() || null,
+        bio:       form.bio.trim()       || null,
         photo_profil: photoPreview?.startsWith('data:') ? photoPreview : (form.photo_profil || null),
       };
       if (isArtisan) {
@@ -85,15 +113,15 @@ export default function EditProfile() {
         payload.experience_level = form.experience_level || null;
       }
 
-      const res = await fetch('/api/artisan/profile', {
-        method: 'PUT',
+      // Route : POST /profil (avec _method spoofing si nécessaire)
+      const res = await fetch(`${API_URL}/profil`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept:         'application/json',
-          Authorization:  `Bearer ${accesToken}`,
+          Authorization:  `Bearer ${token}`,
         },
-        credentials: 'include',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, _method: 'PUT' }),
       });
 
       const data = await res.json();
@@ -109,8 +137,8 @@ export default function EditProfile() {
         return;
       }
 
-      // Mettre à jour le contexte auth avec les nouvelles données
-      if (data.user) login(data.user, accesToken);
+      // Mettre à jour le contexte
+      if (data.user) login(data.user, token);
 
       setSuccess(true);
       setTimeout(() => navigate('/profile'), 1800);
@@ -138,14 +166,12 @@ export default function EditProfile() {
   const fullName = user ? `${user.prenom ?? ''} ${user.nom ?? ''}`.trim() || user.email : '';
   const initiale = fullName.charAt(0).toUpperCase();
 
-  // ── Loading initial ────────────────────────────────────────────────────────
   if (fetching) return (
     <div className="flex items-center justify-center min-h-screen">
       <Loader className="w-10 h-10 animate-spin" style={{ color: '#4a6fa5' }} />
     </div>
   );
 
-  // ── Succès ─────────────────────────────────────────────────────────────────
   if (success) return (
     <div className="flex items-center justify-center min-h-screen"
       style={{ background: 'linear-gradient(135deg, #f8fafc, #e2e8f0)' }}>
@@ -164,28 +190,18 @@ export default function EditProfile() {
   );
 
   return (
-    <div className="min-h-screen pt-24 pb-20"
-      style={{ background: 'linear-gradient(135deg, #f8fafc, #e2e8f0)' }}>
+    <div className="min-h-screen pt-24 pb-20" style={{ background: 'linear-gradient(135deg, #f8fafc, #e2e8f0)' }}>
       <div className="max-w-2xl px-4 mx-auto sm:px-6">
 
-        {/* Breadcrumb */}
-        <Link to="/profile" className="inline-flex items-center gap-2 mb-6 text-sm font-bold"
-          style={{ color: '#4a6fa5' }}>
+        <Link to="/profile" className="inline-flex items-center gap-2 mb-6 text-sm font-bold" style={{ color: '#4a6fa5' }}>
           <ArrowLeft className="w-4 h-4" /> Retour au profil
         </Link>
 
-        {/* Header */}
         <div className="mb-8">
-          <h1 className="mb-2 text-3xl font-black" style={{ color: '#2b2d42' }}>
-            Modifier mon <span className="text-transparent bg-clip-text"
-              style={{ background: 'linear-gradient(90deg, #4a6fa5, #6b8fc7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              profil
-            </span>
-          </h1>
+          <h1 className="mb-2 text-3xl font-black" style={{ color: '#2b2d42' }}>Modifier mon profil</h1>
           <p className="text-gray-500">Mettez à jour vos informations personnelles</p>
         </div>
 
-        {/* Erreur API */}
         {apiError && (
           <div className="p-4 mb-6 text-sm font-semibold text-red-700 border-2 border-red-200 bg-red-50 rounded-xl">
             ⚠️ {apiError}
@@ -194,7 +210,7 @@ export default function EditProfile() {
 
         <div className="space-y-6">
 
-          {/* ── Photo de profil ── */}
+          {/* Photo de profil */}
           <div className="p-8 bg-white shadow-lg rounded-2xl">
             <h3 className="mb-6 text-lg font-bold" style={{ color: '#2b2d42' }}>Photo de profil</h3>
             <div className="flex items-center gap-6">
@@ -220,101 +236,74 @@ export default function EditProfile() {
             </div>
           </div>
 
-          {/* ── Informations personnelles ── */}
+          {/* Informations personnelles */}
           <div className="p-8 bg-white shadow-lg rounded-2xl">
             <h3 className="mb-6 text-lg font-bold" style={{ color: '#2b2d42' }}>Informations personnelles</h3>
             <div className="space-y-4">
 
-              {/* Prénom + Nom */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <label className="block mb-2 text-sm font-bold" style={{ color: '#2b2d42' }}>
-                    Prénom <span style={{ color: '#ff7e5f' }}>*</span>
-                  </label>
-                  <div className="relative">
-                    <User className="absolute w-5 h-5 -translate-y-1/2 pointer-events-none left-4 top-1/2" style={{ color: '#4a6fa5', opacity: 0.5 }} />
-                    <input type="text" value={form.prenom} onChange={(e) => handleChange('prenom', e.target.value)}
-                      placeholder="Jean"
-                      className={`w-full h-12 pl-12 pr-4 border-2 rounded-xl outline-none transition-all ${errors.prenom ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-blue-400'}`}
-                      style={{ color: '#2b2d42' }} />
+                {[{ key: 'prenom', label: 'Prénom', ph: 'Jean' }, { key: 'nom', label: 'Nom', ph: 'Dupont' }].map(({ key, label, ph }) => (
+                  <div key={key}>
+                    <label className="block mb-2 text-sm font-bold" style={{ color: '#2b2d42' }}>
+                      {label} <span style={{ color: '#ff7e5f' }}>*</span>
+                    </label>
+                    <div className="relative">
+                      <User className="absolute w-5 h-5 -translate-y-1/2 pointer-events-none left-4 top-1/2" style={{ color: '#4a6fa5', opacity: 0.5 }} />
+                      <input type="text" value={form[key]} onChange={(e) => handleChange(key, e.target.value)} placeholder={ph}
+                        className={`w-full h-12 pl-12 pr-4 border-2 rounded-xl outline-none transition-all ${errors[key] ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-blue-400'}`}
+                        style={{ color: '#2b2d42' }} />
+                    </div>
+                    {errors[key] && <p className="mt-1 text-xs text-red-500">{errors[key]}</p>}
                   </div>
-                  {errors.prenom && <p className="mt-1 text-xs text-red-500">{errors.prenom}</p>}
-                </div>
-                <div>
-                  <label className="block mb-2 text-sm font-bold" style={{ color: '#2b2d42' }}>
-                    Nom <span style={{ color: '#ff7e5f' }}>*</span>
-                  </label>
-                  <div className="relative">
-                    <User className="absolute w-5 h-5 -translate-y-1/2 pointer-events-none left-4 top-1/2" style={{ color: '#4a6fa5', opacity: 0.5 }} />
-                    <input type="text" value={form.nom} onChange={(e) => handleChange('nom', e.target.value)}
-                      placeholder="Dupont"
-                      className={`w-full h-12 pl-12 pr-4 border-2 rounded-xl outline-none transition-all ${errors.nom ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-blue-400'}`}
-                      style={{ color: '#2b2d42' }} />
-                  </div>
-                  {errors.nom && <p className="mt-1 text-xs text-red-500">{errors.nom}</p>}
-                </div>
+                ))}
               </div>
 
-              {/* Email */}
               <div>
                 <label className="block mb-2 text-sm font-bold" style={{ color: '#2b2d42' }}>
                   Email <span style={{ color: '#ff7e5f' }}>*</span>
                 </label>
                 <div className="relative">
                   <Mail className="absolute w-5 h-5 -translate-y-1/2 pointer-events-none left-4 top-1/2" style={{ color: '#4a6fa5', opacity: 0.5 }} />
-                  <input type="email" value={form.email}
-                    onChange={(e) => handleChange('email', e.target.value)}
-                    placeholder="jean@example.com"
+                  <input type="email" value={form.email} onChange={(e) => handleChange('email', e.target.value)} placeholder="jean@example.com"
                     className={`w-full h-12 pl-12 pr-4 border-2 rounded-xl outline-none transition-all ${errors.email ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-blue-400'}`}
                     style={{ color: '#2b2d42' }} />
                 </div>
                 {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email}</p>}
               </div>
 
-              {/* Téléphone */}
               <div>
                 <label className="block mb-2 text-sm font-bold" style={{ color: '#2b2d42' }}>Téléphone</label>
                 <div className="relative">
                   <Phone className="absolute w-5 h-5 -translate-y-1/2 pointer-events-none left-4 top-1/2" style={{ color: '#4a6fa5', opacity: 0.5 }} />
-                  <input type="tel" value={form.telephone}
-                    onChange={(e) => handleChange('telephone', e.target.value)}
-                    placeholder="+229 97 00 00 00"
+                  <input type="tel" value={form.telephone} onChange={(e) => handleChange('telephone', e.target.value)} placeholder="+229 97 00 00 00"
                     className="w-full h-12 pl-12 pr-4 transition-all border-2 border-gray-200 outline-none rounded-xl focus:border-blue-400"
                     style={{ color: '#2b2d42' }} />
                 </div>
               </div>
-
             </div>
           </div>
 
-          {/* ── Infos artisan (seulement si artisan) ── */}
+          {/* Infos artisan */}
           {isArtisan && (
             <div className="p-8 bg-white shadow-lg rounded-2xl">
-              <h3 className="mb-6 text-lg font-bold" style={{ color: '#2b2d42' }}>
-                Informations artisan
-              </h3>
+              <h3 className="mb-6 text-lg font-bold" style={{ color: '#2b2d42' }}>Informations artisan</h3>
               <div className="space-y-4">
 
-                {/* Spécialité */}
                 <div>
                   <label className="block mb-2 text-sm font-bold" style={{ color: '#2b2d42' }}>Spécialité</label>
                   <div className="relative">
                     <Briefcase className="absolute w-5 h-5 -translate-y-1/2 pointer-events-none left-4 top-1/2" style={{ color: '#4a6fa5', opacity: 0.5 }} />
-                    <input type="text" value={form.specialite}
-                      onChange={(e) => handleChange('specialite', e.target.value)}
-                      placeholder="Ex: Plomberie, Électricité..."
+                    <input type="text" value={form.specialite} onChange={(e) => handleChange('specialite', e.target.value)} placeholder="Ex: Plomberie, Électricité..."
                       className="w-full h-12 pl-12 pr-4 transition-all border-2 border-gray-200 outline-none rounded-xl focus:border-blue-400"
                       style={{ color: '#2b2d42' }} />
                   </div>
                 </div>
 
-                {/* Niveau d'expérience */}
                 <div>
                   <label className="block mb-2 text-sm font-bold" style={{ color: '#2b2d42' }}>Niveau d'expérience</label>
                   <div className="relative">
                     <Award className="absolute w-5 h-5 -translate-y-1/2 pointer-events-none left-4 top-1/2" style={{ color: '#4a6fa5', opacity: 0.5 }} />
-                    <select value={form.experience_level}
-                      onChange={(e) => handleChange('experience_level', e.target.value)}
+                    <select value={form.experience_level} onChange={(e) => handleChange('experience_level', e.target.value)}
                       className="w-full h-12 pl-12 pr-4 transition-all border-2 border-gray-200 outline-none appearance-none rounded-xl focus:border-blue-400"
                       style={{ color: form.experience_level ? '#2b2d42' : '#9ca3af' }}>
                       <option value="">Sélectionnez votre niveau</option>
@@ -323,26 +312,23 @@ export default function EditProfile() {
                   </div>
                 </div>
 
-                {/* Bio */}
                 <div>
                   <label className="block mb-2 text-sm font-bold" style={{ color: '#2b2d42' }}>Biographie</label>
                   <div className="relative">
                     <FileText className="absolute w-5 h-5 pointer-events-none left-4 top-4" style={{ color: '#4a6fa5', opacity: 0.5 }} />
-                    <textarea value={form.bio}
-                      onChange={(e) => handleChange('bio', e.target.value)}
-                      placeholder="Décrivez votre parcours, vos compétences, ce qui vous différencie..."
+                    <textarea value={form.bio} onChange={(e) => handleChange('bio', e.target.value)}
+                      placeholder="Décrivez votre parcours, vos compétences..."
                       rows={4}
                       className="w-full py-3 pl-12 pr-4 transition-all border-2 border-gray-200 outline-none resize-none rounded-xl focus:border-blue-400"
                       style={{ color: '#2b2d42' }} />
                   </div>
                   <div className="mt-1 text-xs text-right text-gray-400">{form.bio.length} caractères</div>
                 </div>
-
               </div>
             </div>
           )}
 
-          {/* ── Boutons ── */}
+          {/* Boutons */}
           <div className="flex gap-4">
             <Link to="/profile" className="flex-1">
               <button className="w-full py-3 font-bold transition-all border-2 border-gray-200 rounded-xl hover:bg-gray-50"
@@ -351,7 +337,7 @@ export default function EditProfile() {
               </button>
             </Link>
             <button onClick={handleSubmit} disabled={loading}
-              className="flex items-center justify-center flex-1 gap-2 py-3 font-bold text-white transition-all rounded-xl hover:shadow-lg hover:scale-105 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="flex items-center justify-center flex-1 gap-2 py-3 font-bold text-white transition-all rounded-xl hover:shadow-lg hover:scale-105 disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ background: 'linear-gradient(135deg, #4a6fa5, #3a5784)' }}>
               {loading ? (
                 <><Loader className="w-5 h-5 animate-spin" /> Enregistrement...</>
@@ -360,7 +346,6 @@ export default function EditProfile() {
               )}
             </button>
           </div>
-
         </div>
       </div>
     </div>
