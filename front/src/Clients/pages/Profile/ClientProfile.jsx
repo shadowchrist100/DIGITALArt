@@ -397,9 +397,9 @@ export default function ClientProfile() {
                   </button>
                 </div>
                 <p className="text-sm leading-relaxed text-gray-600">{atelier.description}</p>
-                {atelier.image_principale && (
+                {(atelier.image_url ?? atelier.image_principale) && (
                   <div className="h-48 overflow-hidden rounded-xl">
-                    <img src={atelier.image_principale} alt={atelier.nom} className="object-cover w-full h-full" />
+                    <img src={atelier.image_url ?? atelier.image_principale} alt={atelier.nom} className="object-cover w-full h-full" />
                   </div>
                 )}
                 {atelier.offres?.length > 0 && (
