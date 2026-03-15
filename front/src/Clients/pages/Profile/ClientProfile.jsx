@@ -1,312 +1,463 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { User, Mail, Phone, MapPin, Calendar, Edit, Star, FileText, Clock, Award } from 'lucide-react';
-import Card from '../../components/Common/Card';
-import Button from '../../components/Common/Button';
+import { useState, useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+  User, Mail, Phone, MapPin, Calendar, Edit, Star,
+  FileText, Clock, Award, LogOut, Shield, Hammer,
+  Briefcase, Store, Plus, Loader, ChevronRight
+} from 'lucide-react';
+import { useAuth } from '../../components/Auth/AuthContext';
+import { profilAPI, atelierAPI, rendezVousAPI } from '../../../../services/api';
 
 export default function ClientProfile() {
-  // TODO: Fetch user data from API
-  const [user] = useState(mockUser);
+  const { user, logout, loading, token } = useAuth();
+  const location = useLocation();
+  const navigate  = useNavigate();
+
+  const [activeTab, setActiveTab] = useState('overview');
+  const [atelier, setAtelier] = useState(null);
+  const [atelierLoad, setAtelierLoad] = useState(false);
+
+  const [profileData, setProfileData] = useState(null);
+  const [profileLoad, setProfileLoad] = useState(false);
+  const [profileErr, setProfileErr] = useState(null);
+
+  const [appointmentsCount, setAppointmentsCount] = useState(0);
+
+  const isNewRegistration = location.state?.newRegistration;
+  const isArtisan         = user?.role === 'ARTISAN';
+
+  // ── GET /profil ────────────────────────────────────────────
+  useEffect(() => {
+    if (!user || !token) return;
+
+    const fetchProfile = async () => {
+      setProfileLoad(true);
+      setProfileErr(null);
+      try {
+        const data = await profilAPI.show();
+        setProfileData(data.user ?? data);
+      } catch (err) {
+        setProfileErr(err.message || 'Erreur lors du chargement du profil.');
+      } finally {
+        setProfileLoad(false);
+      }
+
+      try {
+        if (user.role === 'CLIENT') {
+          const rdvs = await rendezVousAPI.index();
+          setAppointmentsCount(rdvs.rendez_vous?.total ?? rdvs.total ?? 0);
+        } else if (user.role === 'ARTISAN') {
+          const rdvs = await rendezVousAPI.indexArtisan();
+          setAppointmentsCount(rdvs.rendez_vous?.total ?? rdvs.total ?? 0);
+        }
+      } catch {
+        setAppointmentsCount(0);
+      }
+    };
+
+    fetchProfile();
+  }, [user, token]);
+
+  // ── GET /mon-atelier (artisan seulement) ───────────────────
+  useEffect(() => {
+    if (!user || !isArtisan || !token) return;
+
+    const fetchAtelier = async () => {
+      setAtelierLoad(true);
+      try {
+        const data = await atelierAPI.monAtelier();
+        setAtelier(data.atelier ?? data ?? null);
+      } catch {
+        setAtelier(null);
+      } finally {
+        setAtelierLoad(false);
+      }
+    };
+
+    fetchAtelier();
+  }, [user, isArtisan, token]);
+
+  // ── États de chargement / erreurs ─────────────────────────
+  if (loading || profileLoad) return (
+    <div className="flex items-center justify-center min-h-screen">
+      <Loader className="w-12 h-12 animate-spin" style={{ color: '#4a6fa5' }} />
+    </div>
+  );
+
+  if (!user) return (
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+      <p className="text-lg font-semibold" style={{ color: '#2b2d42' }}>
+        Vous devez être connecté pour voir votre profil.
+      </p>
+      <Link to="/login">
+        <button className="px-8 py-3 font-bold text-white rounded-xl"
+          style={{ background: 'linear-gradient(135deg, #4a6fa5, #3a5784)' }}>
+          Se connecter
+        </button>
+      </Link>
+    </div>
+  );
+
+  if (profileErr) return (
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+      <p className="text-lg font-semibold text-red-500">⚠️ {profileErr}</p>
+      <button onClick={() => window.location.reload()}
+        className="px-6 py-3 font-bold text-white rounded-xl"
+        style={{ background: 'linear-gradient(135deg, #4a6fa5, #3a5784)' }}>
+        Réessayer
+      </button>
+    </div>
+  );
+
+  // ── Données affichées ──────────────────────────────────────
+  const profile  = profileData ?? user;
+  const fullName = `${profile.prenom ?? ''} ${profile.nom ?? ''}`.trim() || profile.email;
+  const initiale = fullName.charAt(0).toUpperCase();
+  const photo    = profile.photo_profil ?? profile.photo ?? null;
+
+  const artisanProfile  = profile.artisan ?? null;
+  const specialite      = artisanProfile?.specialite       ?? profile.specialite       ?? null;
+  const experienceLevel = artisanProfile?.experience_level ?? profile.experience_level ?? null;
+  const bio             = artisanProfile?.bio              ?? profile.bio              ?? null;
+  const telephone       = artisanProfile?.telephone        ?? profile.telephone        ?? null;
+
+  const stats = {
+    services:     profile.stats?.services ?? 0,
+    appointments: appointmentsCount,
+    reviews:      profile.stats?.reviews  ?? 0,
+    rating:       profile.rating          ?? null,
+  };
+
+  const handleLogout = () => { logout(); navigate('/'); };
+
+  const tabs = [
+    { id: 'overview', label: "Vue d'ensemble" },
+    { id: 'info',     label: 'Informations'   },
+    ...(isArtisan
+      ? [{ id: 'artisan', label: 'Mon activité' }, { id: 'atelier', label: 'Mon atelier' }]
+      : [{ id: 'activity', label: 'Activité' }]
+    ),
+  ];
 
   return (
-    <div className="min-h-screen pt-24 pb-20" style={{ backgroundColor: 'var(--light)' }}>
-      <div className="px-4 mx-auto max-w-7xl sm:px-6 lg:px-8">
-        
-        {/* Header */}
-        <div className="mb-10">
-          <div className="inline-flex items-center gap-2 px-4 py-2 mb-6 text-sm font-semibold rounded-full" style={{ backgroundColor: 'rgba(74, 111, 165, 0.1)', color: 'var(--primary)' }}>
-            <User className="w-4 h-4" />
-            Mon profil
-          </div>
-          
-          <h1 className="mb-4 text-4xl font-black md:text-5xl" style={{ color: 'var(--dark)' }}>
-            Profil
-            <span className="text-transparent bg-clip-text" style={{ background: 'linear-gradient(90deg, var(--primary), var(--primary-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              {' '}client
-            </span>
-          </h1>
+    <div className="min-h-screen pt-20" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)' }}>
+
+      {isNewRegistration && (
+        <div className="px-4 py-3 text-sm font-semibold text-center text-white"
+          style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}>
+          🎉 Bienvenue ! Votre compte {isArtisan ? 'artisan' : 'client'} a été créé avec succès.
         </div>
+      )}
 
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-          
-          {/* Colonne principale */}
-          <div className="space-y-6 lg:col-span-2">
-            
-            {/* Card informations personnelles */}
-            <Card>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold" style={{ color: 'var(--dark)' }}>
-                  Informations personnelles
-                </h2>
-                <Link to="/profile/edit">
-                  <Button variant="outline" className="!px-4 !py-2 !text-sm">
-                    <Edit className="w-4 h-4" />
-                    Modifier
-                  </Button>
-                </Link>
-              </div>
+      {/* ── Hero ── */}
+      <div className="relative overflow-hidden"
+        style={{ background: 'linear-gradient(135deg, #4a6fa5 0%, #2d4a7c 100%)', borderBottom: '4px solid #ff7e5f' }}>
+        <div className="relative px-4 py-16 mx-auto max-w-7xl sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center gap-8 md:flex-row md:items-end">
 
-              <div className="space-y-4">
-                <div className="flex items-start gap-4 p-4 rounded-xl" style={{ backgroundColor: 'var(--gray)' }}>
-                  <User className="w-5 h-5 mt-0.5" style={{ color: 'var(--primary)' }} />
-                  <div className="flex-1">
-                    <div className="mb-1 text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>
-                      Nom complet
-                    </div>
-                    <div className="font-bold" style={{ color: 'var(--dark)' }}>
-                      {user.name}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4 p-4 rounded-xl" style={{ backgroundColor: 'var(--gray)' }}>
-                  <Mail className="w-5 h-5 mt-0.5" style={{ color: 'var(--primary)' }} />
-                  <div className="flex-1">
-                    <div className="mb-1 text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>
-                      Email
-                    </div>
-                    <div className="font-bold" style={{ color: 'var(--dark)' }}>
-                      {user.email}
-                    </div>
-                    <div className="flex items-center gap-1 mt-1">
-                      {user.emailVerified ? (
-                        <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: '#22c55e' }}>
-                          ✓ Vérifié
-                        </span>
-                      ) : (
-                        <span className="text-xs font-semibold" style={{ color: '#fb923c' }}>
-                          Non vérifié
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4 p-4 rounded-xl" style={{ backgroundColor: 'var(--gray)' }}>
-                  <Phone className="w-5 h-5 mt-0.5" style={{ color: 'var(--primary)' }} />
-                  <div className="flex-1">
-                    <div className="mb-1 text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>
-                      Téléphone
-                    </div>
-                    <div className="font-bold" style={{ color: 'var(--dark)' }}>
-                      {user.phone}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4 p-4 rounded-xl" style={{ backgroundColor: 'var(--gray)' }}>
-                  <MapPin className="w-5 h-5 mt-0.5" style={{ color: 'var(--primary)' }} />
-                  <div className="flex-1">
-                    <div className="mb-1 text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>
-                      Localisation
-                    </div>
-                    <div className="font-bold" style={{ color: 'var(--dark)' }}>
-                      {user.city}, {user.country}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4 p-4 rounded-xl" style={{ backgroundColor: 'var(--gray)' }}>
-                  <Calendar className="w-5 h-5 mt-0.5" style={{ color: 'var(--primary)' }} />
-                  <div className="flex-1">
-                    <div className="mb-1 text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>
-                      Membre depuis
-                    </div>
-                    <div className="font-bold" style={{ color: 'var(--dark)' }}>
-                      {user.memberSince}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {/* Card activité récente */}
-            <Card>
-              <h2 className="mb-6 text-2xl font-bold" style={{ color: 'var(--dark)' }}>
-                Activité récente
-              </h2>
-
-              <div className="space-y-4">
-                {user.recentActivity.map((activity, idx) => (
-                  <div key={idx} className="flex items-start gap-4 p-4 border rounded-xl" style={{ borderColor: 'var(--gray-dark)' }}>
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full" style={{ backgroundColor: activity.iconBg }}>
-                      {activity.icon === 'service' && <FileText className="w-5 h-5" style={{ color: activity.iconColor }} />}
-                      {activity.icon === 'appointment' && <Calendar className="w-5 h-5" style={{ color: activity.iconColor }} />}
-                      {activity.icon === 'review' && <Star className="w-5 h-5" style={{ color: activity.iconColor }} />}
-                    </div>
-                    <div className="flex-1">
-                      <div className="mb-1 font-bold" style={{ color: 'var(--dark)' }}>
-                        {activity.title}
-                      </div>
-                      <div className="mb-2 text-sm" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                        {activity.description}
-                      </div>
-                      <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--dark)', opacity: 0.5 }}>
-                        <Clock className="w-3 h-3" />
-                        {activity.time}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6 lg:col-span-1">
-            
-            {/* Photo de profil */}
-            <Card className="text-center">
-              <div className="w-32 h-32 mx-auto mb-4 overflow-hidden rounded-full" style={{ backgroundColor: 'var(--gray)' }}>
-                {user.avatar ? (
-                  <img src={user.avatar} alt={user.name} className="object-cover w-full h-full" />
+            {/* Avatar */}
+            <div className="relative group">
+              <div className="relative w-40 h-40 overflow-hidden transition-transform duration-300 bg-white border-4 border-white rounded-full shadow-2xl group-hover:scale-105">
+                {photo ? (
+                  <img src={photo} alt={fullName} className="object-cover w-full h-full" />
                 ) : (
-                  <div className="flex items-center justify-center w-full h-full text-4xl font-black text-white" style={{ backgroundColor: 'var(--primary)' }}>
-                    {user.name.charAt(0)}
+                  <div className="flex items-center justify-center w-full h-full text-6xl font-black text-white"
+                    style={{ background: 'linear-gradient(135deg, #ff7e5f, #feb47b)' }}>
+                    {initiale}
                   </div>
                 )}
               </div>
-              <h3 className="mb-2 text-xl font-bold" style={{ color: 'var(--dark)' }}>
-                {user.name}
-              </h3>
-              <p className="mb-4 text-sm" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                Membre DigitalArt
-              </p>
               <Link to="/profile/edit">
-                <Button variant="outline" className="w-full">
+                <button className="absolute bottom-0 right-0 p-3 text-white transition-all duration-300 rounded-full shadow-lg hover:scale-110"
+                  style={{ background: 'linear-gradient(135deg, #ff7e5f, #feb47b)' }}>
                   <Edit className="w-4 h-4" />
-                  Modifier la photo
-                </Button>
+                </button>
               </Link>
-            </Card>
+            </div>
 
-            {/* Statistiques */}
-            <Card>
-              <h3 className="mb-4 text-lg font-bold" style={{ color: 'var(--dark)' }}>
-                Mes statistiques
-              </h3>
-              
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: 'var(--gray)' }}>
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-5 h-5" style={{ color: 'var(--accent)' }} />
-                    <span className="text-sm font-medium" style={{ color: 'var(--dark)' }}>
-                      Services
-                    </span>
-                  </div>
-                  <span className="text-xl font-black" style={{ color: 'var(--accent)' }}>
-                    {user.stats.services}
+            {/* Infos */}
+            <div className="flex-1 text-center md:text-left">
+              <div className="flex items-center justify-center gap-3 mb-2 md:justify-start">
+                <h1 className="text-4xl font-black text-white md:text-5xl">{fullName}</h1>
+                {isArtisan && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 text-sm font-bold text-white rounded-full bg-white/20">
+                    <Hammer className="w-4 h-4" /> Artisan
                   </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: 'var(--gray)' }}>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-                    <span className="text-sm font-medium" style={{ color: 'var(--dark)' }}>
-                      Rendez-vous
-                    </span>
-                  </div>
-                  <span className="text-xl font-black" style={{ color: 'var(--primary)' }}>
-                    {user.stats.appointments}
+                )}
+              </div>
+              <p className="mb-4 text-lg text-white/80">Membre DigitalArt</p>
+              <div className="flex flex-wrap items-center justify-center gap-3 md:justify-start">
+                {profile.created_at && (
+                  <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-full bg-white/20">
+                    <Calendar className="w-4 h-4" />
+                    Membre depuis {new Date(profile.created_at).getFullYear()}
                   </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: 'var(--gray)' }}>
-                  <div className="flex items-center gap-2">
-                    <Star className="w-5 h-5" style={{ color: '#fbbf24' }} />
-                    <span className="text-sm font-medium" style={{ color: 'var(--dark)' }}>
-                      Avis laissés
-                    </span>
-                  </div>
-                  <span className="text-xl font-black" style={{ color: '#fbbf24' }}>
-                    {user.stats.reviews}
+                )}
+                {isArtisan && specialite && (
+                  <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-full bg-white/20">
+                    <Briefcase className="w-4 h-4" />
+                    {specialite.charAt(0).toUpperCase() + specialite.slice(1)}
                   </span>
-                </div>
+                )}
               </div>
-            </Card>
+            </div>
 
-            {/* Badge membre */}
-            <Card className="text-center">
-              <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full" style={{ backgroundColor: 'rgba(255, 126, 95, 0.1)' }}>
-                <Award className="w-8 h-8" style={{ color: 'var(--accent)' }} />
-              </div>
-              <h3 className="mb-2 text-lg font-bold" style={{ color: 'var(--dark)' }}>
-                Membre Actif
-              </h3>
-              <p className="text-xs" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                Vous êtes un membre actif de la communauté DigitalArt
-              </p>
-            </Card>
-
-            {/* Actions rapides */}
-            <Card>
-              <h3 className="mb-4 text-lg font-bold" style={{ color: 'var(--dark)' }}>
-                Actions rapides
-              </h3>
-              <div className="space-y-2">
-                <Link to="/my-services">
-                  <button className="w-full p-3 text-sm font-bold text-left transition-all rounded-lg hover:shadow-md" style={{ backgroundColor: 'var(--gray)', color: 'var(--dark)' }}>
-                    Mes demandes de services
-                  </button>
-                </Link>
-                <Link to="/my-appointments">
-                  <button className="w-full p-3 text-sm font-bold text-left transition-all rounded-lg hover:shadow-md" style={{ backgroundColor: 'var(--gray)', color: 'var(--dark)' }}>
-                    Mes rendez-vous
-                  </button>
-                </Link>
-                <Link to="/my-reviews">
-                  <button className="w-full p-3 text-sm font-bold text-left transition-all rounded-lg hover:shadow-md" style={{ backgroundColor: 'var(--gray)', color: 'var(--dark)' }}>
-                    Mes avis
-                  </button>
-                </Link>
-              </div>
-            </Card>
+            {/* Actions */}
+            <div className="flex gap-3">
+              <Link to="/profile/edit">
+                <button className="px-6 py-3 text-sm font-bold text-white transition-all border-2 border-white rounded-xl hover:bg-white hover:text-blue-900">
+                  <Edit className="inline w-4 h-4 mr-2" />Modifier
+                </button>
+              </Link>
+              <button onClick={handleLogout}
+                className="px-6 py-3 text-sm font-bold text-white transition-all border-2 border-white/50 rounded-xl hover:bg-white/10">
+                <LogOut className="inline w-4 h-4 mr-2" />Déconnexion
+              </button>
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* ── Stats ── */}
+      <div className="px-4 mx-auto -mt-8 max-w-7xl sm:px-6 lg:px-8">
+        <div className={`grid grid-cols-1 gap-4 ${isArtisan ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+          {[
+            { label: 'Services',    value: stats.services    ?? 0, color: '#ff7e5f', Icon: FileText },
+            { label: 'Rendez-vous', value: stats.appointments ?? 0, color: '#4a6fa5', Icon: Calendar },
+            { label: 'Avis',        value: stats.reviews     ?? 0, color: '#f59e0b', Icon: Star     },
+            ...(isArtisan ? [{ label: 'Note moy.', value: stats.rating ? Number(stats.rating).toFixed(1) : '—', color: '#22c55e', Icon: Award }] : []),
+          ].map(({ label, value, color, Icon }) => (
+            <div key={label} className="relative p-6 overflow-hidden transition-all duration-300 bg-white shadow-lg rounded-2xl hover:shadow-xl hover:-translate-y-1">
+              <div className="relative flex items-center justify-between">
+                <div>
+                  <p className="mb-1 text-sm font-semibold text-gray-500">{label}</p>
+                  <p className="text-4xl font-black" style={{ color }}>{value}</p>
+                </div>
+                <div className="p-4 rounded-full" style={{ backgroundColor: `${color}1a` }}>
+                  <Icon className="w-8 h-8" style={{ color }} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Onglets ── */}
+      <div className="px-4 mx-auto mt-8 max-w-7xl sm:px-6 lg:px-8">
+        <div className="flex gap-2 p-2 overflow-x-auto bg-white shadow-md rounded-2xl">
+          {tabs.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`px-6 py-3 font-bold rounded-xl transition-all whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Contenu ── */}
+      <div className="px-4 mx-auto mt-6 mb-16 max-w-7xl sm:px-6 lg:px-8">
+
+        {/* Vue d'ensemble */}
+        {activeTab === 'overview' && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="p-8 bg-white shadow-lg rounded-2xl">
+              <h3 className="mb-6 text-2xl font-black text-gray-900">Actions rapides</h3>
+              <div className="space-y-3">
+                {[
+                  { to: '/my-services',     Icon: FileText, label: 'Mes demandes de services', sub: 'Gérer vos demandes'     },
+                  { to: '/my-appointments', Icon: Calendar, label: 'Mes rendez-vous',           sub: 'Consulter votre agenda' },
+                  { to: '/my-reviews',      Icon: Star,     label: 'Mes avis',                  sub: 'Voir vos évaluations'   },
+                  ...(isArtisan ? [{ to: `/artisan/${user.id}`, Icon: Hammer, label: 'Mon profil public', sub: 'Comment les clients me voient' }] : []),
+                ].map(({ to, Icon, label, sub }) => (
+                  <Link key={to} to={to}>
+                    <button className="flex items-center w-full gap-4 p-4 transition-all duration-300 border-2 border-gray-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 group">
+                      <div className="p-3 transition-colors bg-gray-100 rounded-lg group-hover:bg-blue-100">
+                        <Icon className="w-6 h-6 text-gray-600 group-hover:text-blue-600" />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="font-bold text-gray-900">{label}</div>
+                        <div className="text-sm text-gray-500">{sub}</div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
+                    </button>
+                  </Link>
+                ))}
+
+                {isArtisan && (
+                  <button
+                    onClick={() => navigate(atelier ? `/atelier/${atelier.id}/edit` : '/atelier/create')}
+                    className="flex items-center w-full gap-4 p-4 transition-all duration-300 border-2 border-dashed rounded-xl hover:bg-orange-50 group"
+                    style={{ borderColor: '#ff7e5f' }}>
+                    <div className="p-3 rounded-lg" style={{ backgroundColor: 'rgba(255,126,95,0.1)' }}>
+                      {atelier
+                        ? <Store className="w-6 h-6" style={{ color: '#ff7e5f' }} />
+                        : <Plus  className="w-6 h-6" style={{ color: '#ff7e5f' }} />}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="font-bold" style={{ color: '#ff7e5f' }}>
+                        {atelier ? 'Gérer mon atelier' : 'Créer mon atelier'}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {atelier ? 'Modifier vos offres et informations' : 'Exposez vos services aux clients'}
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5" style={{ color: '#ff7e5f' }} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="relative p-8 overflow-hidden text-center text-white shadow-lg rounded-2xl"
+              style={{ background: 'linear-gradient(135deg, #ff7e5f 0%, #feb47b 100%)' }}>
+              <div className="flex items-center justify-center w-24 h-24 mx-auto mb-6 bg-white rounded-full shadow-xl">
+                <Award className="w-12 h-12" style={{ color: '#ff7e5f' }} />
+              </div>
+              <h3 className="mb-3 text-3xl font-black">{isArtisan ? 'Artisan Certifié' : 'Membre Actif'}</h3>
+              <p className="text-lg text-white/90">
+                {isArtisan
+                  ? "Vous faites partie de notre réseau d'artisans professionnels"
+                  : "Vous êtes un membre actif de la communauté DigitalArt "}
+              </p>
+              {isArtisan && !atelier && (
+                <button onClick={() => navigate('/atelier/create')}
+                  className="inline-flex items-center gap-2 px-6 py-3 mt-6 font-bold text-orange-500 transition-all bg-white rounded-xl hover:shadow-lg hover:scale-105">
+                  <Plus className="w-5 h-5" /> Créer mon atelier
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Informations personnelles */}
+        {activeTab === 'info' && (
+          <div className="p-8 bg-white shadow-lg rounded-2xl">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-2xl font-black text-gray-900">Informations personnelles</h3>
+              <Link to="/profile/edit">
+                <button className="flex items-center gap-2 px-5 py-2.5 font-bold text-white rounded-xl"
+                  style={{ background: 'linear-gradient(135deg, #ff7e5f, #feb47b)' }}>
+                  <Edit className="w-4 h-4" /> Modifier
+                </button>
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              {[
+                { Icon: User,      label: 'Nom complet', value: fullName,               show: true      },
+                { Icon: Mail,      label: 'Email',        value: profile.email,          show: true      },
+                { Icon: Phone,     label: 'Téléphone',    value: telephone ?? '—',       show: true      },
+                { Icon: Briefcase, label: 'Spécialité',   value: specialite ?? '—',      show: isArtisan },
+                { Icon: Award,     label: 'Expérience',   value: experienceLevel ?? '—', show: isArtisan },
+                { Icon: FileText,  label: 'Bio',          value: bio ?? '—',             show: isArtisan },
+              ].filter(f => f.show).map(({ Icon, label, value }) => (
+                <div key={label} className="p-6 transition-all duration-300 border-2 border-gray-200 rounded-xl hover:border-blue-400 hover:shadow-md">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 rounded-lg" style={{ backgroundColor: 'rgba(74,111,165,0.1)' }}>
+                      <Icon className="w-6 h-6" style={{ color: '#4a6fa5' }} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="mb-1 text-sm font-semibold text-gray-500">{label}</div>
+                      <div className="text-lg font-bold text-gray-900 break-words">{value}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Mon activité artisan */}
+        {activeTab === 'artisan' && isArtisan && (
+          <div className="p-8 bg-white shadow-lg rounded-2xl">
+            <h3 className="mb-6 text-2xl font-black text-gray-900">Mon activité artisan</h3>
+            <div className="p-6 text-center border-2 border-dashed rounded-xl" style={{ borderColor: '#e9ecef' }}>
+              <Hammer className="w-12 h-12 mx-auto mb-4" style={{ color: '#4a6fa5', opacity: 0.4 }} />
+              <p className="font-semibold text-gray-500">Vos missions et rendez-vous apparaîtront ici.</p>
+              <Link to="/my-services">
+                <button className="px-6 py-3 mt-4 font-bold text-white rounded-xl"
+                  style={{ background: 'linear-gradient(135deg, #4a6fa5, #3a5784)' }}>
+                  Voir les demandes de service
+                </button>
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Mon atelier */}
+        {activeTab === 'atelier' && isArtisan && (
+          <div className="p-8 bg-white shadow-lg rounded-2xl">
+            {atelierLoad ? (
+              <div className="flex justify-center py-10">
+                <Loader className="w-8 h-8 animate-spin" style={{ color: '#4a6fa5' }} />
+              </div>
+            ) : !atelier ? (
+              <div className="py-12 text-center">
+                <div className="flex items-center justify-center w-20 h-20 mx-auto mb-6 rounded-full"
+                  style={{ backgroundColor: 'rgba(255,126,95,0.1)' }}>
+                  <Store className="w-10 h-10" style={{ color: '#ff7e5f' }} />
+                </div>
+                <h3 className="mb-3 text-2xl font-bold text-gray-900">Vous n'avez pas encore d'atelier</h3>
+                <p className="mb-6 text-gray-500">Créez votre atelier pour exposer vos services aux clients</p>
+                <button onClick={() => navigate('/atelier/create')}
+                  className="inline-flex items-center gap-2 px-8 py-4 font-bold text-white transition-all rounded-xl hover:shadow-lg hover:scale-105"
+                  style={{ background: 'linear-gradient(135deg, #ff7e5f, #feb47b)' }}>
+                  <Plus className="w-5 h-5" /> Créer mon atelier
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="mb-1 text-2xl font-black text-gray-900">{atelier.nom}</h3>
+                    <div className="flex items-center gap-2 mb-3 text-sm text-gray-500">
+                      <MapPin className="w-4 h-4" />{atelier.localisation}
+                    </div>
+                  </div>
+                  <button onClick={() => navigate(`/atelier/${atelier.id}/edit`)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-xl"
+                    style={{ background: 'linear-gradient(135deg, #4a6fa5, #3a5784)' }}>
+                    <Edit className="w-4 h-4" /> Modifier
+                  </button>
+                </div>
+                <p className="text-sm leading-relaxed text-gray-600">{atelier.description}</p>
+                {(atelier.image_url ?? atelier.image_principale) && (
+                  <div className="h-48 overflow-hidden rounded-xl">
+                    <img src={atelier.image_url ?? atelier.image_principale} alt={atelier.nom} className="object-cover w-full h-full" />
+                  </div>
+                )}
+                {atelier.offres?.length > 0 && (
+                  <div>
+                    <h4 className="mb-3 font-bold text-gray-900">Mes offres ({atelier.offres.length})</h4>
+                    <div className="space-y-2">
+                      {atelier.offres.map(o => (
+                        <div key={o.id} className="flex items-center justify-between p-3 transition-all border-2 border-gray-100 rounded-lg hover:border-blue-200">
+                          <span className="font-semibold text-gray-800">{o.titre}</span>
+                          <span className="font-black" style={{ color: '#ff7e5f' }}>{o.prix} FCFA</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Activité client */}
+        {activeTab === 'activity' && !isArtisan && (
+          <div className="p-8 bg-white shadow-lg rounded-2xl">
+            <h3 className="mb-8 text-2xl font-black text-gray-900">Activité récente</h3>
+            <div className="py-12 text-center">
+              <Clock className="w-12 h-12 mx-auto mb-4" style={{ color: '#4a6fa5', opacity: 0.3 }} />
+              <p className="font-semibold text-gray-500">Aucune activité récente pour l'instant.</p>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
 }
-
-// Mock data
-const mockUser = {
-  name: 'Sophie Martin',
-  email: 'sophie.martin@example.com',
-  phone: '+229 97 12 34 56',
-  city: 'Cotonou',
-  country: 'Bénin',
-  memberSince: 'Janvier 2025',
-  emailVerified: true,
-  avatar: null,
-  stats: {
-    services: 12,
-    appointments: 8,
-    reviews: 6
-  },
-  recentActivity: [
-    {
-      icon: 'review',
-      iconBg: 'rgba(251, 191, 36, 0.1)',
-      iconColor: '#fbbf24',
-      title: 'Avis laissé',
-      description: 'Vous avez évalué Jean Kouassi - Plomberie',
-      time: 'Il y a 2 jours'
-    },
-    {
-      icon: 'appointment',
-      iconBg: 'rgba(74, 111, 165, 0.1)',
-      iconColor: 'var(--primary)',
-      title: 'Rendez-vous confirmé',
-      description: 'RDV avec Marie Dossou le 22 Jan',
-      time: 'Il y a 3 jours'
-    },
-    {
-      icon: 'service',
-      iconBg: 'rgba(255, 126, 95, 0.1)',
-      iconColor: 'var(--accent)',
-      title: 'Demande acceptée',
-      description: 'Service d\'installation électrique',
-      time: 'Il y a 5 jours'
-    }
-  ]
-};
