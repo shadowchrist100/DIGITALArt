@@ -1,327 +1,445 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Mail, Phone, MapPin, Save, Camera, CheckCircle } from 'lucide-react';
-import Card from '../../components/Common/Card';
-import Button from '../../components/Common/Button';
-import Input from '../../components/Common/Input';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import {
+  ArrowLeft, User, Mail, Phone, Save,
+  Camera, CheckCircle, Loader, Briefcase, Award, FileText
+} from 'lucide-react';
+import { useAuth }   from '../../components/Auth/AuthContext';
+import { profilAPI } from '../../../../services/api';
+
+const EXPERIENCE_LEVELS = [
+  { value: 'debutant',      label: 'Débutant (0-2 ans)'     },
+  { value: 'intermediaire', label: 'Intermédiaire (3-5 ans)' },
+  { value: 'expert',        label: 'Expert (6+ ans)'         },
+];
 
 export default function EditProfile() {
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [avatarPreview, setAvatarPreview] = useState(null);
+  const navigate           = useNavigate();
+  const { user, token, login } = useAuth();
+  const isArtisan          = user?.role === 'ARTISAN';
 
-  const [formData, setFormData] = useState({
-    name: 'Sophie Martin',
-    email: 'sophie.martin@example.com',
-    phone: '+229 97 12 34 56',
-    address: '123 Rue de la République',
-    city: 'Cotonou',
-    country: 'Bénin',
-    bio: ''
+  const [loading,  setLoading]  = useState(false);
+  const [fetching, setFetching] = useState(true);
+  const [success,  setSuccess]  = useState(false);
+  const [errors,   setErrors]   = useState({});
+  const [apiError, setApiError] = useState(null);
+
+  const [form, setForm] = useState({
+    prenom:           '',
+    nom:              '',
+    email:            '',
+    telephone:        '',
+    bio:              '',
+    specialite:       '',
+    experience_level: '',
+    photo_profil:     '',
   });
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
-  };
+  const [photoFile,    setPhotoFile]    = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
 
-  const handleAvatarChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  useEffect(() => {
+    if (!user || !token) return;
+
+    const fetchProfile = async () => {
+      try {
+        const data    = await profilAPI.show();
+        const profile = data?.user ?? data ?? user;
+
+        const artisanProfile = profile.artisan ?? null;
+
+        setForm({
+          prenom:           profile.prenom                               ?? '',
+          nom:              profile.nom                                  ?? '',
+          email:            profile.email                                ?? '',
+          telephone:        artisanProfile?.telephone ?? profile.telephone ?? '',
+          bio:              artisanProfile?.bio       ?? profile.bio       ?? '',
+          specialite:       artisanProfile?.specialite       ?? profile.specialite       ?? '',
+          experience_level: artisanProfile?.experience_level ?? profile.experience_level ?? '',
+          photo_profil:     profile.photo_profil ?? '',
+        });
+        setPhotoPreview(profile.photo_profil ?? profile.photo ?? null);
+
+      } catch {
+        const artisanProfile = user.artisan ?? null;
+        setForm({
+          prenom:           user.prenom                                   ?? '',
+          nom:              user.nom                                      ?? '',
+          email:            user.email                                    ?? '',
+          telephone:        artisanProfile?.telephone ?? user.telephone   ?? '',
+          bio:              artisanProfile?.bio       ?? user.bio         ?? '',
+          specialite:       artisanProfile?.specialite       ?? user.specialite       ?? '',
+          experience_level: artisanProfile?.experience_level ?? user.experience_level ?? '',
+          photo_profil:     user.photo_profil ?? '',
+        });
+        setPhotoPreview(user.photo_profil ?? user.photo ?? null);
+      } finally {
+        setFetching(false);
+      }
+    };
+
+    fetchProfile();
+  }, [user, token]);
 
   const validate = () => {
-    const newErrors = {};
-    
-    if (!formData.name || formData.name.trim().length < 2) {
-      newErrors.name = 'Nom requis (min 2 caractères)';
-    }
-    
-    if (!formData.email) {
-      newErrors.email = 'Email requis';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email invalide';
-    }
-    
-    if (!formData.phone) {
-      newErrors.phone = 'Téléphone requis';
-    }
-    
-    if (!formData.city) {
-      newErrors.city = 'Ville requise';
-    }
-    
-    return newErrors;
+    const e = {};
+    if (!form.prenom.trim()) e.prenom = 'Le prénom est requis';
+    if (!form.nom.trim())    e.nom    = 'Le nom est requis';
+    if (!form.email.trim())  e.email  = "L'email est requis";
+    else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Email invalide';
+    return e;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    const newErrors = validate();
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
+  const handleSubmit = async () => {
+    const e = validate();
+    if (Object.keys(e).length > 0) { setErrors(e); return; }
 
     setLoading(true);
-    
+    setApiError(null);
+
     try {
-      // TODO: Appel API Laravel
-      setTimeout(() => {
-        console.log('Update profile:', formData);
-        setLoading(false);
-        setSuccess(true);
-        
-        setTimeout(() => {
-          navigate('/profile');
-        }, 1500);
-      }, 1500);
-      
-    } catch (error) {
+      let data;
+
+      if (photoFile) {
+        const fd = new FormData();
+        fd.append('prenom',       form.prenom.trim());
+        fd.append('nom',          form.nom.trim());
+        fd.append('photo_profil', photoFile);
+        data = await profilAPI.update(fd, true);
+      } else {
+        const payload = {
+          prenom: form.prenom.trim(),
+          nom:    form.nom.trim(),
+        };
+        data = await profilAPI.update(payload);
+      }
+
+      if (isArtisan) {
+        const artisanPayload = {
+          telephone: form.telephone.trim() || null,
+        };
+        await profilAPI.updateArtisan(artisanPayload);
+      }
+
+      if (data?.user) login(data.user, token);
+
+      setSuccess(true);
+      setTimeout(() => navigate('/profile'), 1800);
+
+    } catch (err) {
+      if (err.errors) {
+        const mapped = {};
+        Object.entries(err.errors).forEach(([k, msgs]) => {
+          mapped[k] = Array.isArray(msgs) ? msgs[0] : msgs;
+        });
+        setErrors(mapped);
+      } else {
+        setApiError(err.message || 'Impossible de contacter le serveur.');
+      }
+    } finally {
       setLoading(false);
-      setErrors({ submit: 'Erreur lors de la mise à jour' });
-      console.error('Update profile error:', error);
     }
   };
 
-  if (success) {
-    return (
-      <div className="flex items-center justify-center min-h-screen pt-24 pb-20" style={{ backgroundColor: 'var(--light)' }}>
-        <Card className="w-full max-w-md p-12 text-center">
-          <div className="flex items-center justify-center w-20 h-20 mx-auto mb-6 rounded-full" style={{ backgroundColor: 'rgba(34, 197, 94, 0.1)' }}>
-            <CheckCircle className="w-12 h-12" style={{ color: '#22c55e' }} />
-          </div>
-          <h2 className="mb-4 text-3xl font-black" style={{ color: 'var(--dark)' }}>
-            Profil mis à jour !
-          </h2>
-          <p className="mb-6 text-sm" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-            Vos informations ont été enregistrées avec succès
-          </p>
-        </Card>
+  const handleChange = (key, value) => {
+    setForm(prev => ({ ...prev, [key]: value }));
+    if (errors[key]) setErrors(prev => ({ ...prev, [key]: null }));
+  };
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setPhotoFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setPhotoPreview(reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const fullName = user ? `${user.prenom ?? ''} ${user.nom ?? ''}`.trim() || user.email : '';
+  const initiale = fullName.charAt(0).toUpperCase();
+
+  const inputStyle = (hasError) => ({
+    width: '100%',
+    height: 48,
+    paddingLeft: 48,
+    paddingRight: 16,
+    border: `2px solid ${hasError ? '#f87171' : '#e5e7eb'}`,
+    borderRadius: 12,
+    outline: 'none',
+    fontSize: 15,
+    color: '#1f2937',
+    background: hasError ? '#fef2f2' : '#fff',
+    boxSizing: 'border-box',
+    transition: 'border-color 0.2s',
+  });
+
+  const labelStyle = {
+    display: 'block',
+    marginBottom: 8,
+    fontSize: 13,
+    fontWeight: 700,
+    color: '#1f2937',
+  };
+
+  const iconWrapStyle = {
+    position: 'relative',
+    display: 'block',
+  };
+
+  const iconStyle = {
+    position: 'absolute',
+    left: 16,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: 18,
+    height: 18,
+    color: '#4a6fa5',
+    opacity: 0.5,
+    pointerEvents: 'none',
+  };
+
+  const cardStyle = {
+    background: '#fff',
+    borderRadius: 16,
+    boxShadow: '0 4px 24px rgba(74,111,165,0.10)',
+    padding: 32,
+  };
+
+  if (fetching) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+      <Loader style={{ width: 40, height: 40, color: '#4a6fa5', animation: 'spin 1s linear infinite' }} />
+    </div>
+  );
+
+  if (success) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'linear-gradient(135deg,#f8fafc,#e2e8f0)' }}>
+      <div style={{ maxWidth: 380, padding: 40, margin: '0 16px', textAlign: 'center', background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(74,111,165,0.15)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 80, height: 80, margin: '0 auto 24px', borderRadius: '50%', background: 'rgba(34,197,94,0.1)' }}>
+          <CheckCircle style={{ width: 40, height: 40, color: '#22c55e' }} />
+        </div>
+        <h2 style={{ fontSize: 24, fontWeight: 900, color: '#1f2937', marginBottom: 8 }}>Profil mis à jour !</h2>
+        <p style={{ color: '#6b7280', marginBottom: 16 }}>Vos informations ont été enregistrées.</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, color: '#4a6fa5' }}>
+          <Loader style={{ width: 14, height: 14, animation: 'spin 1s linear infinite' }} /> Redirection...
+        </div>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
-    <div className="min-h-screen pt-24 pb-20" style={{ backgroundColor: 'var(--light)' }}>
-      <div className="max-w-4xl px-4 mx-auto sm:px-6 lg:px-8">
-        
-        {/* Header */}
-        <button
-          onClick={() => navigate('/profile')}
-          className="inline-flex items-center gap-2 mb-6 text-sm font-bold transition-all"
-          style={{ color: 'var(--primary)' }}
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Retour au profil
-        </button>
+    <div style={{ minHeight: '100vh', paddingTop: 96, paddingBottom: 80, background: 'linear-gradient(135deg,#f8fafc,#e2e8f0)' }}>
+      <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 16px' }}>
 
-        <div className="mb-10">
-          <div className="inline-flex items-center gap-2 px-4 py-2 mb-6 text-sm font-semibold rounded-full" style={{ backgroundColor: 'rgba(74, 111, 165, 0.1)', color: 'var(--primary)' }}>
-            <User className="w-4 h-4" />
-            Édition profil
-          </div>
-          
-          <h1 className="mb-4 text-4xl font-black md:text-5xl" style={{ color: 'var(--dark)' }}>
-            Modifier mon
-            <span className="text-transparent bg-clip-text" style={{ background: 'linear-gradient(90deg, var(--primary), var(--primary-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              {' '}profil
-            </span>
-          </h1>
-          <p className="text-lg" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-            Mettez à jour vos informations personnelles
-          </p>
+        <Link to="/profile" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 24, fontSize: 13, fontWeight: 700, color: '#4a6fa5', textDecoration: 'none' }}>
+          <ArrowLeft style={{ width: 14, height: 14 }} /> Retour au profil
+        </Link>
+
+        <div style={{ marginBottom: 32 }}>
+          <h1 style={{ fontSize: 30, fontWeight: 900, color: '#1f2937', marginBottom: 8 }}>Modifier mon profil</h1>
+          <p style={{ color: '#6b7280' }}>Mettez à jour vos informations personnelles</p>
         </div>
 
-        <Card className="p-8">
-          {errors.submit && (
-            <div className="p-4 mb-6 rounded-xl" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderLeft: '4px solid #ef4444' }}>
-              <p className="text-sm font-semibold" style={{ color: '#ef4444' }}>{errors.submit}</p>
+        {apiError && (
+          <div style={{ padding: 16, marginBottom: 24, fontSize: 13, fontWeight: 600, color: '#b91c1c', border: '2px solid #fecaca', background: '#fef2f2', borderRadius: 12 }}>
+            ⚠️ {apiError}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+          {/* Photo de profil */}
+          <div style={cardStyle}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1f2937', marginBottom: 24 }}>Photo de profil</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+              <div style={{ flexShrink: 0, width: 96, height: 96, borderRadius: '50%', border: '4px solid #fff', overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}>
+                {photoPreview ? (
+                  <img src={photoPreview} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, fontWeight: 900, color: '#fff', background: 'linear-gradient(135deg,#ff7e5f,#feb47b)' }}>
+                    {initiale}
+                  </div>
+                )}
+              </div>
+              <div>
+                <input type="file" id="photo" accept="image/*" onChange={handlePhotoChange} style={{ display: 'none' }} />
+                <label htmlFor="photo" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, border: '2px solid #e5e7eb', borderRadius: 12, cursor: 'pointer', color: '#1f2937' }}>
+                  <Camera style={{ width: 14, height: 14 }} /> Changer la photo
+                </label>
+                <p style={{ marginTop: 8, fontSize: 11, color: '#9ca3af' }}>JPG, PNG (max 2MB)</p>
+                {photoFile && (
+                  <p style={{ marginTop: 4, fontSize: 11, fontWeight: 600, color: '#22c55e' }}>✓ {photoFile.name}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Informations personnelles */}
+          <div style={cardStyle}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1f2937', marginBottom: 24 }}>Informations personnelles</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                {[
+                  { key: 'prenom', label: 'Prénom', ph: 'Jean'   },
+                  { key: 'nom',    label: 'Nom',    ph: 'Dupont' },
+                ].map(({ key, label, ph }) => (
+                  <div key={key}>
+                    <label style={labelStyle}>
+                      {label} <span style={{ color: '#ff7e5f' }}>*</span>
+                    </label>
+                    <div style={iconWrapStyle}>
+                      <User style={iconStyle} />
+                      <input
+                        type="text"
+                        value={form[key]}
+                        onChange={(e) => handleChange(key, e.target.value)}
+                        placeholder={ph}
+                        style={inputStyle(!!errors[key])}
+                        onFocus={e => { if (!errors[key]) e.target.style.borderColor = '#60a5fa'; }}
+                        onBlur={e  => { if (!errors[key]) e.target.style.borderColor = '#e5e7eb'; }}
+                      />
+                    </div>
+                    {errors[key] && <p style={{ marginTop: 4, fontSize: 11, color: '#ef4444' }}>{errors[key]}</p>}
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <label style={labelStyle}>
+                  Email <span style={{ color: '#ff7e5f' }}>*</span>
+                </label>
+                <div style={iconWrapStyle}>
+                  <Mail style={iconStyle} />
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => handleChange('email', e.target.value)}
+                    placeholder="jean@example.com"
+                    style={inputStyle(!!errors.email)}
+                    onFocus={e => { if (!errors.email) e.target.style.borderColor = '#60a5fa'; }}
+                    onBlur={e  => { if (!errors.email) e.target.style.borderColor = '#e5e7eb'; }}
+                    disabled
+                  />
+                </div>
+                {errors.email && <p style={{ marginTop: 4, fontSize: 11, color: '#ef4444' }}>{errors.email}</p>}
+              </div>
+
+              {!isArtisan && (
+                <div>
+                  <label style={labelStyle}>Téléphone</label>
+                  <div style={iconWrapStyle}>
+                    <Phone style={iconStyle} />
+                    <input
+                      type="tel"
+                      value={form.telephone}
+                      onChange={(e) => handleChange('telephone', e.target.value)}
+                      placeholder="+229 97 00 00 00"
+                      style={inputStyle(false)}
+                      onFocus={e => e.target.style.borderColor = '#60a5fa'}
+                      onBlur={e  => e.target.style.borderColor = '#e5e7eb'}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Infos artisan */}
+          {isArtisan && (
+            <div style={cardStyle}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1f2937', marginBottom: 24 }}>Informations artisan</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                <div>
+                  <label style={labelStyle}>Téléphone</label>
+                  <div style={iconWrapStyle}>
+                    <Phone style={iconStyle} />
+                    <input
+                      type="tel"
+                      value={form.telephone}
+                      onChange={(e) => handleChange('telephone', e.target.value)}
+                      placeholder="+229 97 00 00 00"
+                      style={inputStyle(false)}
+                      onFocus={e => e.target.style.borderColor = '#60a5fa'}
+                      onBlur={e  => e.target.style.borderColor = '#e5e7eb'}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Spécialité</label>
+                  <div style={iconWrapStyle}>
+                    <Briefcase style={iconStyle} />
+                    <input
+                      type="text"
+                      value={form.specialite}
+                      onChange={(e) => handleChange('specialite', e.target.value)}
+                      placeholder="Ex: Plomberie, Électricité..."
+                      style={inputStyle(false)}
+                      disabled
+                      onFocus={e => e.target.style.borderColor = '#60a5fa'}
+                      onBlur={e  => e.target.style.borderColor = '#e5e7eb'}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Niveau d'expérience</label>
+                  <div style={iconWrapStyle}>
+                    <Award style={iconStyle} />
+                    <select
+                      value={form.experience_level}
+                      onChange={(e) => handleChange('experience_level', e.target.value)}
+                      style={{ ...inputStyle(false), appearance: 'none', color: form.experience_level ? '#1f2937' : '#9ca3af' }}
+                      disabled
+                    >
+                      <option value="">Sélectionnez votre niveau</option>
+                      {EXPERIENCE_LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Biographie</label>
+                  <div style={{ position: 'relative' }}>
+                    <FileText style={{ ...iconStyle, top: 16, transform: 'none' }} />
+                    <textarea
+                      value={form.bio}
+                      onChange={(e) => handleChange('bio', e.target.value)}
+                      placeholder="Décrivez votre parcours, vos compétences..."
+                      rows={4}
+                      style={{ width: '100%', paddingTop: 12, paddingBottom: 12, paddingLeft: 48, paddingRight: 16, border: '2px solid #e5e7eb', borderRadius: 12, outline: 'none', resize: 'none', fontSize: 15, color: '#1f2937', boxSizing: 'border-box' }}
+                      disabled
+                      onFocus={e => e.target.style.borderColor = '#60a5fa'}
+                      onBlur={e  => e.target.style.borderColor = '#e5e7eb'}
+                    />
+                  </div>
+                  <div style={{ marginTop: 4, fontSize: 11, textAlign: 'right', color: '#9ca3af' }}>{form.bio.length} caractères</div>
+                </div>
+              </div>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-8">
-            
-            {/* Photo de profil */}
-            <div>
-              <label className="block mb-4 text-sm font-bold" style={{ color: 'var(--dark)' }}>
-                Photo de profil
-              </label>
-              <div className="flex items-center gap-6">
-                <div className="w-24 h-24 overflow-hidden rounded-full" style={{ backgroundColor: 'var(--gray)' }}>
-                  {avatarPreview ? (
-                    <img src={avatarPreview} alt="Avatar" className="object-cover w-full h-full" />
-                  ) : (
-                    <div className="flex items-center justify-center w-full h-full text-3xl font-black text-white" style={{ backgroundColor: 'var(--primary)' }}>
-                      {formData.name.charAt(0)}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <input
-                    type="file"
-                    id="avatar"
-                    accept="image/*"
-                    onChange={handleAvatarChange}
-                    className="hidden"
-                  />
-                  <label htmlFor="avatar">
-                    <Button type="button" variant="outline" className="!px-4 !py-2 !text-sm cursor-pointer" onClick={() => document.getElementById('avatar').click()}>
-                      <Camera className="w-4 h-4" />
-                      Changer la photo
-                    </Button>
-                  </label>
-                  <p className="mt-2 text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>
-                    JPG, PNG ou GIF (max 5MB)
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Informations personnelles */}
-            <div className="pt-6 border-t" style={{ borderColor: 'var(--gray-dark)' }}>
-              <h3 className="mb-6 text-xl font-bold" style={{ color: 'var(--dark)' }}>
-                Informations personnelles
-              </h3>
-              
-              <div className="space-y-4">
-                <Input
-                  label="Nom complet *"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  icon={User}
-                  placeholder="Jean Dupont"
-                  error={errors.name}
-                />
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Input
-                    label="Email *"
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    icon={Mail}
-                    placeholder="exemple@email.com"
-                    error={errors.email}
-                  />
-                  
-                  <Input
-                    label="Téléphone *"
-                    name="phone"
-                    type="tel"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    icon={Phone}
-                    placeholder="+229 XX XX XX XX"
-                    error={errors.phone}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Localisation */}
-            <div className="pt-6 border-t" style={{ borderColor: 'var(--gray-dark)' }}>
-              <h3 className="mb-6 text-xl font-bold" style={{ color: 'var(--dark)' }}>
-                Localisation
-              </h3>
-              
-              <div className="space-y-4">
-                <Input
-                  label="Adresse"
-                  name="address"
-                  value={formData.address}
-                  onChange={handleChange}
-                  icon={MapPin}
-                  placeholder="123 Rue de la République"
-                />
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Input
-                    label="Ville *"
-                    name="city"
-                    value={formData.city}
-                    onChange={handleChange}
-                    icon={MapPin}
-                    placeholder="Cotonou"
-                    error={errors.city}
-                  />
-                  
-                  <Input
-                    label="Pays"
-                    name="country"
-                    value={formData.country}
-                    onChange={handleChange}
-                    icon={MapPin}
-                    placeholder="Bénin"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Bio */}
-            <div className="pt-6 border-t" style={{ borderColor: 'var(--gray-dark)' }}>
-              <label className="block mb-2 text-sm font-bold" style={{ color: 'var(--dark)' }}>
-                Bio (optionnel)
-              </label>
-              <textarea
-                name="bio"
-                value={formData.bio}
-                onChange={handleChange}
-                placeholder="Parlez-nous un peu de vous..."
-                rows={4}
-                className="w-full px-4 py-3 transition-all border-2 resize-none rounded-xl"
-                style={{
-                  backgroundColor: 'var(--gray)',
-                  borderColor: 'var(--gray-dark)',
-                  color: 'var(--dark)'
-                }}
-              ></textarea>
-            </div>
-
-            {/* Boutons */}
-            <div className="flex gap-4 pt-6 border-t" style={{ borderColor: 'var(--gray-dark)' }}>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate('/profile')}
-                className="flex-1"
-              >
+          {/* Boutons */}
+          <div style={{ display: 'flex', gap: 16 }}>
+            <Link to="/profile" style={{ flex: 1, textDecoration: 'none' }}>
+              <button style={{ width: '100%', padding: '12px 0', fontWeight: 700, border: '2px solid #e5e7eb', borderRadius: 12, cursor: 'pointer', color: '#1f2937', background: '#fff' }}>
                 Annuler
-              </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                disabled={loading}
-                className="flex-1"
-              >
-                {loading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 border-2 border-white rounded-full border-t-transparent animate-spin"></div>
-                    Enregistrement...
-                  </div>
-                ) : (
-                  <>
-                    <Save className="w-5 h-5" />
-                    Enregistrer les modifications
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
-        </Card>
+              </button>
+            </Link>
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', fontWeight: 700, color: '#fff', border: 'none', borderRadius: 12, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1, background: 'linear-gradient(135deg,#4a6fa5,#3a5784)' }}>
+              {loading ? (
+                <><Loader style={{ width: 18, height: 18, animation: 'spin 1s linear infinite' }} /> Enregistrement...</>
+              ) : (
+                <><Save style={{ width: 18, height: 18 }} /> Enregistrer</>
+              )}
+            </button>
+          </div>
+
+        </div>
       </div>
     </div>
   );

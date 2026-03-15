@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Mail, Shield } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
+import authService from '../services/authService';
 
 export default function AdminLogin() {
   const [showPassword, setShowPassword] = useState(false);
@@ -9,8 +9,7 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  const { login } = useAuth();
+
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -19,19 +18,12 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
-      const response = await login(email, password);
-      
-      // Vérifier que c'est bien un admin
-      if (response.user.role !== 'ADMIN') {
-        setError('Accès réservé aux administrateurs uniquement');
-        setLoading(false);
-        return;
-      }
-
-      // Rediriger vers le dashboard admin
+      // authService.login appelle POST /auth/login et vérifie le rôle ADMIN
+      await authService.login(email, password);
       navigate('/admin/dashboard');
     } catch (err) {
       setError(err.message || 'Email ou mot de passe incorrect');
+    } finally {
       setLoading(false);
     }
   };
@@ -39,11 +31,11 @@ export default function AdminLogin() {
   return (
     <div className="flex items-center justify-center min-h-screen p-4" style={{ backgroundColor: '#f8f9fa' }}>
       <div className="w-full max-w-sm mx-auto">
-        
+
         {/* Badge */}
         <div className="mb-3 text-center">
-          <span className="inline-flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-full" style={{ 
-            backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+          <span className="inline-flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-full" style={{
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
             color: '#ef4444',
             border: '1px solid rgba(239, 68, 68, 0.2)'
           }}>
@@ -63,15 +55,14 @@ export default function AdminLogin() {
         </div>
 
         {/* Formulaire */}
-        <div className="p-5 shadow-lg rounded-xl" style={{ 
+        <div className="p-5 shadow-lg rounded-xl" style={{
           border: '1px solid #e9ecef',
           backgroundColor: 'white'
         }}>
-          {/* Message d'erreur */}
           {error && (
-            <div 
+            <div
               className="p-3 mb-4 text-sm rounded-lg"
-              style={{ 
+              style={{
                 backgroundColor: 'rgba(239, 68, 68, 0.1)',
                 border: '1px solid rgba(239, 68, 68, 0.3)',
                 color: '#ef4444'
@@ -95,11 +86,7 @@ export default function AdminLogin() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@exemple.com"
                   className="w-full py-3 pr-4 text-sm transition-all border rounded-lg outline-none pl-11 focus:ring-2"
-                  style={{ 
-                    borderColor: '#e9ecef',
-                    backgroundColor: '#f8f9fa',
-                    color: '#2b2d42'
-                  }}
+                  style={{ borderColor: '#e9ecef', backgroundColor: '#f8f9fa', color: '#2b2d42' }}
                   onFocus={(e) => e.target.style.borderColor = '#4a6fa5'}
                   onBlur={(e) => e.target.style.borderColor = '#e9ecef'}
                   required
@@ -116,16 +103,12 @@ export default function AdminLogin() {
               <div className="relative">
                 <Lock className="absolute w-5 h-5 -translate-y-1/2 left-3 top-1/2" style={{ color: '#ff7e5f' }} />
                 <input
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   className="w-full py-3 pr-12 text-sm transition-all border rounded-lg outline-none pl-11 focus:ring-2"
-                  style={{ 
-                    borderColor: '#e9ecef',
-                    backgroundColor: '#f8f9fa',
-                    color: '#2b2d42'
-                  }}
+                  style={{ borderColor: '#e9ecef', backgroundColor: '#f8f9fa', color: '#2b2d42' }}
                   onFocus={(e) => e.target.style.borderColor = '#4a6fa5'}
                   onBlur={(e) => e.target.style.borderColor = '#e9ecef'}
                   required
@@ -143,14 +126,12 @@ export default function AdminLogin() {
               </div>
             </div>
 
-            {/* Bouton de connexion */}
-            <button 
-              type="submit" 
+            {/* Bouton */}
+            <button
+              type="submit"
               disabled={loading}
               className="w-full py-3 text-sm font-semibold text-white rounded-lg transition-all hover:shadow-lg hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ 
-                background: 'linear-gradient(135deg, #4a6fa5, #3a5784)'
-              }}
+              style={{ background: 'linear-gradient(135deg, #4a6fa5, #3a5784)' }}
             >
               {loading ? (
                 <div className="flex items-center justify-center gap-2">
@@ -163,22 +144,20 @@ export default function AdminLogin() {
             </button>
           </form>
 
-          {/* Avertissement - Remplace la section "Pas encore de compte" */}
           <div className="pt-4 mt-4 text-center border-t" style={{ borderColor: '#e9ecef' }}>
             <p className="text-sm" style={{ color: '#2b2d42', opacity: 0.7 }}>
-              Accès réservé aux administrateurs.{" "}
-              <Link 
-                to="/login" 
+              Accès réservé aux administrateurs.{' '}
+              <Link
+                to="/login"
                 className="font-semibold transition-all hover:underline"
                 style={{ color: '#ff7e5f' }}
               >
-              Retour à l'Espace Client
+                Retour à l'Espace Client
               </Link>
             </p>
           </div>
         </div>
 
-        {/* Footer */}
         <p className="mt-4 text-xs text-center" style={{ color: '#2b2d42', opacity: 0.5 }}>
           En vous connectant, vous acceptez nos conditions d'utilisation
         </p>

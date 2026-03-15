@@ -1,61 +1,69 @@
 import { useState, useEffect, useCallback } from 'react';
-import { moderationService } from '../services/moderationService';
+import moderationService from '../services/moderationService';
 
-export const useModeration = (filters = {}) => {
-  const [signalements, setSignalements] = useState([]);
+export const useModeration = () => {
+  const [avis, setAvis] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchSignalements = useCallback(async () => {
+  const fetchAvis = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await moderationService.getSignalements(filters);
-      setSignalements(data);
+      const data = await moderationService.getAvis();
+      setAvis(data.data ?? data);
     } catch (err) {
-      setError(err.message || 'Erreur lors de la récupération des signalements');
-      console.error('Erreur signalements:', err);
+      setError(err.message || 'Erreur lors de la récupération des avis');
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, []);
 
   useEffect(() => {
-    fetchSignalements();
-  }, [fetchSignalements]);
+    fetchAvis();
+  }, [fetchAvis]);
 
-  const resolveSignalement = async (signalementId, data) => {
-    await moderationService.resolveSignalement(signalementId, data);
-    fetchSignalements(); // Rafraîchir la liste
+  // Supprimer un avis → DELETE /admin/avis/{id}
+  const deleteAvis = async (avisId) => {
+    await moderationService.deleteAvis(avisId);
+    fetchAvis();
   };
 
-  const rejectSignalement = async (signalementId, motif) => {
-    await moderationService.rejectSignalement(signalementId, motif);
-    fetchSignalements(); // Rafraîchir la liste
+  // Suspendre un user → PATCH /admin/users/{id}/suspendre
+  const suspendreUser = async (userId) => {
+    await moderationService.suspendreUser(userId);
+    fetchAvis();
   };
 
-  const suspendAccount = async (userId, data) => {
-    await moderationService.suspendAccount(userId, data);
-    fetchSignalements(); // Rafraîchir la liste
+  // Réactiver un user → PATCH /admin/users/{id}/reactiver
+  const reactiverUser = async (userId) => {
+    await moderationService.reactiverUser(userId);
+    fetchAvis();
   };
 
-  const deleteContent = async (contentType, contentId) => {
-    await moderationService.deleteContent(contentType, contentId);
-    fetchSignalements(); // Rafraîchir la liste
+  // Suspendre un atelier → PATCH /admin/ateliers/{id}/suspendre
+  const suspendreAtelier = async (atelierId) => {
+    await moderationService.suspendreAtelier(atelierId);
+    fetchAvis();
   };
 
-  const refresh = () => {
-    fetchSignalements();
+  // Réactiver un atelier → PATCH /admin/ateliers/{id}/reactiver
+  const reactiverAtelier = async (atelierId) => {
+    await moderationService.reactiverAtelier(atelierId);
+    fetchAvis();
   };
+
+  const refresh = () => fetchAvis();
 
   return {
-    signalements,
+    avis,
     loading,
     error,
-    resolveSignalement,
-    rejectSignalement,
-    suspendAccount,
-    deleteContent,
+    deleteAvis,
+    suspendreUser,
+    reactiverUser,
+    suspendreAtelier,
+    reactiverAtelier,
     refresh,
   };
 };

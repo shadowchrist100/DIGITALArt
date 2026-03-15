@@ -1,135 +1,110 @@
-import {
-  Wrench,
-  PlugZap,
-  Hammer,
-  Paintbrush,
-  HardHat,
-  KeyRound,
-} from "lucide-react";
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Wrench, Zap, Hammer, Paintbrush, HardHat, Shirt, Scissors, KeyRound } from 'lucide-react';
+//import { GiSewingNeedle, GiScissors } from 'react-icons/gi';
 
-import { GiSewingNeedle, GiComb, GiScissors } from "react-icons/gi";
+const CATEGORIES = [
+  { name: 'Plomberie', value: 'Plomberie', icon: Wrench },
+  { name: 'Électricité', value: 'Électricité', icon: Zap },
+  { name: 'Menuiserie', value: 'Menuiserie', icon: Hammer },
+  { name: 'Peinture', value: 'Peinture', icon: Paintbrush },
+  { name: 'Maçonnerie', value: 'Maçonnerie', icon: HardHat },
+  { name: 'Couture', value: 'Couture', icon: Shirt },
+  { name: 'Coiffure', value: 'Coiffure', icon: Scissors },
+  { name: 'Mécanique', value: 'Mécanique', icon: KeyRound },
+];
 
 export default function CategoriesGrid() {
-  const categories = [
-    {
-      name: "Plomberie",
-      color: "from-blue-500 to-blue-600",
-      icon: <Wrench className="w-10 h-10 text-white" />,
-    },
-    {
-      name: "Électricité",
-      color: "from-yellow-500 to-yellow-600",
-      icon: <PlugZap className="w-10 h-10 text-white" />,
-    },
-    {
-      name: "Menuiserie",
-      color: "from-orange-500 to-orange-600",
-      icon: <Hammer className="w-10 h-10 text-white" />,
-    },
-    {
-      name: "Peinture",
-      color: "from-pink-500 to-pink-600",
-      icon: <Paintbrush className="w-10 h-10 text-white" />,
-    },
-    {
-      name: "Maçonnerie",
-      color: "from-red-500 to-red-600",
-      icon: <HardHat className="w-10 h-10 text-white" />,
-    },
-    {
-      name: "Couture",
-      color: "from-purple-500 to-purple-600",
-      icon: <GiSewingNeedle className="w-10 h-10 text-white" />,
-    },
-    {
-      name: "Coiffure",
-      color: "from-green-500 to-green-600",
-      icon: (
-        <div className="flex items-center gap-2">
-          <GiScissors className="text-white w-7 h-7" />
-          <GiComb className="text-white w-7 h-7" />
-        </div>
-      ),
-    },
-    {
-      name: "Mécanique",
-      color: "from-gray-500 to-gray-600",
-      icon: <KeyRound className="w-10 h-10 text-white" />,
-    },
-  ];
+  const navigate = useNavigate();
+  const [counts,  setCounts]  = useState({});
+  const [loading, setLoading] = useState(true);
+
+  // ── GET /ateliers → compteurs par domaine ──────────────────
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const BASE  = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+        const token = localStorage.getItem('token');
+
+        const res  = await fetch(`${BASE}/ateliers?par_page=999`, {
+          headers: {
+            Accept: 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        const list = json.data ?? json ?? [];
+
+        const c = {};
+        list.forEach(a => {
+          const d = a.domaine;
+          if (d) c[d] = (c[d] ?? 0) + 1;
+        });
+        setCounts(c);
+      } catch { /* silencieux — compteurs optionnels */ }
+      finally { setLoading(false); }
+    };
+    fetchCounts();
+  }, []);
 
   return (
-    <section
-      className="relative py-20"
-      style={{
-        background:
-          "linear-gradient(135deg, var(--gray) 0%, var(--light) 50%, var(--gray) 100%)",
-      }}
-    >
-      <div className="w-full max-w-6xl px-4 py-16 mx-auto sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto text-center">
-          <div
-            className="inline-flex items-center gap-2 px-4 py-2 mb-8 text-sm font-semibold rounded-full"
-            style={{
-              backgroundColor: "rgba(74, 111, 165, 0.1)",
-              color: "var(--primary)",
-            }}
-          >
-            <span
-              className="w-2 h-2 rounded-full animate-pulse"
-              style={{ backgroundColor: "var(--accent)" }}
-            />
+    <section className="py-12" style={{ backgroundColor: '#f8fafc' }}>
+      <div className="w-full max-w-3xl px-4 mx-auto sm:px-6">
+
+        {/* Header */}
+        <div className="mb-10 text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-4 text-xs font-semibold rounded-full"
+            style={{ backgroundColor: 'rgba(74, 111, 165, 0.1)', color: '#4a6fa5' }}>
+            <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#4a6fa5' }} />
             Spécialités
           </div>
 
-          <h2
-            className="mb-6 text-4xl font-black leading-tight md:text-5xl"
-            style={{ color: "var(--dark)" }}
-          >
+          <h2 className="mb-3 text-3xl font-black md:text-4xl" style={{ color: '#2b2d42' }}>
             Explorez nos catégories
-            <br />
-            <span
-              className="text-transparent bg-clip-text"
-              style={{
-                background:
-                  "linear-gradient(90deg, var(--primary), var(--primary-light))",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}
-            >
-              d&apos;artisanat
+            <span className="text-transparent bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text"
+              style={{ WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              {' '}d'artisanat
             </span>
           </h2>
 
-          <p
-            className="max-w-2xl mx-auto mb-10 text-lg md:text-xl"
-            style={{ color: "var(--dark)", opacity: 0.7 }}
-          >
-            Tous les métiers de l&apos;artisanat à votre service avec des
-            professionnels vérifiés
+          <p className="text-sm text-gray-600">
+            Tous les métiers de l'artisanat à votre service
           </p>
+        </div>
 
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            {categories.map((category, index) => (
-              <div
-                key={index}
-                className="p-6 transition-all duration-300 bg-white shadow-lg cursor-pointer rounded-xl hover:shadow-2xl hover:-translate-y-2 group"
-                style={{ border: "1px solid var(--gray-dark)" }}
+        {/* Grid */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {CATEGORIES.map((category) => {
+            const Icon  = category.icon;
+            const count = counts[category.value];
+
+            return (
+              <button
+                key={category.value}
+                onClick={() => navigate(`/artisans?category=${encodeURIComponent(category.value)}`)}
+                className="flex flex-col items-center gap-2 p-4 transition-all duration-300 bg-white border-2 border-gray-100 shadow-sm cursor-pointer rounded-xl hover:shadow-md hover:-translate-y-1 hover:border-gray-200 group"
               >
-                <div
-                  className={`w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br ${category.color} flex items-center justify-center transform group-hover:scale-110 transition-transform duration-300`}
-                >
-                  {category.icon}
-                </div>
-                <h3
-                  className="text-lg font-bold text-center"
-                  style={{ color: "var(--dark)" }}
-                >
+                <Icon
+                  className="w-8 h-8 transition-transform duration-300 group-hover:scale-110"
+                  style={{ color: category.color }}
+                  strokeWidth={2}
+                />
+                <span className="text-xs font-bold text-center" style={{ color: '#2b2d42' }}>
                   {category.name}
-                </h3>
-              </div>
-            ))}
-          </div>
+                </span>
+                {!loading && count != null && (
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: `${category.color}18`, color: category.color }}>
+                    {count} artisan{count > 1 ? 's' : ''}
+                  </span>
+                )}
+                {loading && (
+                  <span className="w-12 h-4 bg-gray-100 rounded-full animate-pulse" />
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
     </section>

@@ -1,53 +1,74 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-//  Imports Clients - Layout 
+// Layout
 import Header from "./Clients/components/Layout/Header";
 import Footer from "./Clients/components/Layout/Footer";
 
-// Imports Clients - Auth
-import Home from "./Clients/pages/Home";
-import Login from "./Clients/pages/Auth/Login";
-import Register from "./Clients/pages/Auth/Register";
+// Auth
+import Home          from "./Clients/pages/Home";
+import Login         from "./Clients/pages/Auth/Login";
+import Register      from "./Clients/pages/Auth/Register";
 import ForgotPassword from "./Clients/pages/Auth/ForgotPassword";
 
-// Imports Clients - Catalog
-import ArtisansList from "./Clients/pages/Catalog/ArtisansList";
+// Catalog
+import ArtisansList  from "./Clients/pages/Catalog/ArtisansList";
 import ArtisanDetail from "./Clients/pages/Catalog/ArtisanDetail";
 
-// Imports Clients - Services 
-import MyServices from "./Clients/pages/Services/MyServices";
-import ServiceRequest from "./Clients/pages/Services/ServiceRequest";
+// Services
+import MyServices      from "./Clients/pages/Services/MyServices";
+import ServiceRequest  from "./Clients/pages/Services/ServiceRequest";
 import ServiceImmediate from "./Clients/pages/Services/ServiceImmediate";
 
-// Imports Clients - Appointments 
-import MyAppointments from "./Clients/pages/Appointments/MyAppointments";
+// Appointments
+import MyAppointments  from "./Clients/pages/Appointments/MyAppointments";
 import BookAppointment from "./Clients/pages/Appointments/BookAppointment";
 
-// Imports - Profile 
+// Profile
 import ClientProfile from "./Clients/pages/Profile/ClientProfile";
-import EditProfile from "./Clients/pages/Profile/EditProfile";
+import EditProfile   from "./Clients/pages/Profile/EditProfile";
 
-// Imports Clients - Reviews 
+// Atelier
+import CreateAtelier   from "./Clients/pages/Atelier/CreateAtelier";
+import EditAtelier     from "./Clients/pages/Atelier/EditAtelier";
+import GestionHoraires from "./Clients/pages/Atelier/Gestionhoraires";
+import GestionOeuvres  from "./Clients/pages/Atelier/Gestionoeuvres";
+import GestionOffres   from "./Clients/pages/Atelier/Gestionoffres";
+
+// Reviews
 import WriteReview from "./Clients/pages/Reviews/WriteReview";
-import MyReviews from "./Clients/pages/Reviews/MyReviews";
+import MyReviews   from "./Clients/pages/Reviews/MyReviews";
 
-// Imports Clients - Notifications 
+// Notifications
 import NotificationsList from "./Clients/pages/Notifications/NotificationsList";
 
-// Imports Admin 
-import AdminLogin from "./Admin/pages/AdminLogin";
-import AdminDashboard from "./Admin/pages/AdminDashboard";
-import AdminUsers from "./Admin/pages/AdminUsers";
+// Admin
+import AdminLogin              from "./Admin/pages/AdminLogin";
+import AdminDashboard          from "./Admin/pages/AdminDashboard";
+import AdminUsers              from "./Admin/pages/AdminUsers";
 import AdminArtisanVerification from "./Admin/pages/AdminArtisanVerification";
-import AdminModeration from "./Admin/pages/AdminModeration";
-import AdminAteliers from "./Admin/pages/AdminAteliers";
-import AdminServices from "./Admin/pages/AdminServices";
-import AdminAppointments from "./Admin/pages/AdminAppointments";
-import AdminReviews from "./Admin/pages/AdminReviews";
-import AdminSettings from "./Admin/pages/AdminSettings";
-import AdminLayout from "./Admin/layouts/AdminLayout";
+import AdminModeration         from "./Admin/pages/AdminModeration";
+import AdminAteliers           from "./Admin/pages/AdminAteliers";
+import AdminServices           from "./Admin/pages/AdminServices";
+import AdminAppointments       from "./Admin/pages/AdminAppointments";
+import AdminReviews            from "./Admin/pages/AdminReviews";
+import AdminSettings           from "./Admin/pages/AdminSettings";
+import AdminLayout             from "./Admin/layouts/AdminLayout";
+
 import { AuthProvider } from "./Clients/components/Auth/AuthContext";
-import AuthComponent from "./Clients/components/Auth/AuthComponent";
+import ProtectedRoute  from "./component/ProtectedRoute";
+
+// ── Wrapper layout client (évite la répétition)
+function ClientLayout({ children, pt }) {
+  return (
+    <div className="flex flex-col min-h-screen">
+      <Header />
+      <main className={`flex-grow${pt ? ` ${pt}` : ''}`}>
+        {children}
+      </main>
+      <Footer />
+    </div>
+  );
+}
 
 function App() {
     return (

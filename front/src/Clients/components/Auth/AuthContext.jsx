@@ -1,14 +1,14 @@
-import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import { authAPI } from '../../../../services/api';
 
 export const AuthContext = createContext(undefined);
 
 export function AuthProvider({ children }) {
-    const [user, setUser] = useState(null);
+    const [user,    setUser]    = useState(null);
+    const [token,   setToken]   = useState(() => localStorage.getItem('token'));
     const [loading, setLoading] = useState(true);
-    const [accesToken, setAccessToken] = useState(null);
-    const isRefreshing = useRef(false);
 
-
+    // Au montage : si un token existe en localStorage, on recharge l'utilisateur
     useEffect(() => {
         const checkSession = async () => {
             // si un refresh est en cours on sort immediatement
@@ -22,24 +22,23 @@ export function AuthProvider({ children }) {
                 setUser(null);
                 setLoading(null);
                 setLoading(false);
-                throw new Error("Une erreur est survenue :", error);
+                return;
             }
-            finally {
+            try {
+                const data = await authAPI.me();   // GET /auth/me
+                setUser(data.user ?? data);
+                setToken(savedToken);
+            } catch {
+                // Token invalide ou expiré → on nettoie
+                localStorage.removeItem('token');
+                setUser(null);
+                setToken(null);
+            } finally {
                 setLoading(false);
-                isRefreshing.current = false;
             }
-        }
-        checkSession();
-        // // Vérifier si un token existe dans localStorage au chargement
-        // const token = localStorage.getItem('token');
-        // const userData = localStorage.getItem('user');
+        };
 
-        // if (token && userData) {
-        //     // eslint-disable-next-line react-hooks/set-state-in-effect
-        //     setUser(JSON.parse(userData));
-        // }
-        // // // eslint-disable-next-line react-hooks/set-state-in-effect
-        // setLoading(false);
+        restoreSession();
     }, []);
 
     const refreshAccessToken = async () => {
@@ -83,23 +82,34 @@ export function AuthProvider({ children }) {
         setUser(userData);
     };
 
-    const logout = () => {
-        setAccessToken(null);
-        setUser(null);
+    /** Déconnexion */
+    const logout = async () => {
+        try {
+            await authAPI.logout();   // POST /auth/logout
+        } catch {
+            // On déconnecte côté client même si l'API échoue
+        } finally {
+            localStorage.removeItem('token');
+            setUser(null);
+            setToken(null);
+        }
     };
 
     const value = {
         user,
+        token,
         login,
         logout,
-        isAuthenticated: !!user,
         loading,
-        accesToken
+        isAuthenticated: !!user,
+        isClient:  user?.role === 'CLIENT',
+        isArtisan: user?.role === 'ARTISAN',
+        isAdmin:   user?.role === 'ADMIN',
     };
 
     return (
         <AuthContext.Provider value={value}>
-            {children}
+            {!loading && children}
         </AuthContext.Provider>
     );
 }

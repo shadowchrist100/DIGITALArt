@@ -611,7 +611,76 @@ export default function Register() {
                         </p>
                     </div>
                 </div>
+              )}
+
+              {/* Mot de passe */}
+              <div>
+                <label className="block mb-2 text-sm font-bold" style={{ color: '#2b2d42' }}>Mot de passe</label>
+                <div className="relative">
+                  <div className="absolute -translate-y-1/2 left-4 top-1/2" style={{ color: '#ff7e5f' }}><Lock className="w-5 h-5" /></div>
+                  <input type={showPassword ? 'text' : 'password'} name="mot_de_passe" value={formData.mot_de_passe} onChange={handleChange} placeholder="••••••••"
+                    className="w-full h-12 px-4 pl-12 pr-12 transition-all border-2 rounded-xl focus:outline-none"
+                    style={s('mot_de_passe')} onFocus={(e) => fo(e, 'mot_de_passe')} onBlur={(e) => bl(e, 'mot_de_passe')} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)}
+                    className="absolute -translate-y-1/2 right-4 top-1/2" style={{ color: '#4a6fa5' }}>
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {errors.mot_de_passe && <p className="mt-2 text-sm font-semibold" style={{ color: '#ff7e5f' }}>{errors.mot_de_passe}</p>}
+              </div>
+
+              {/* Confirmer mot de passe */}
+              <div>
+                <label className="block mb-2 text-sm font-bold" style={{ color: '#2b2d42' }}>Confirmer le mot de passe</label>
+                <div className="relative">
+                  <div className="absolute -translate-y-1/2 left-4 top-1/2" style={{ color: '#ff7e5f' }}><Lock className="w-5 h-5" /></div>
+                  <input type={showConfirmPassword ? 'text' : 'password'} name="mot_de_passe_confirmation" value={formData.mot_de_passe_confirmation} onChange={handleChange} placeholder="••••••••"
+                    className="w-full h-12 px-4 pl-12 pr-12 transition-all border-2 rounded-xl focus:outline-none"
+                    style={s('mot_de_passe_confirmation')} onFocus={(e) => fo(e, 'mot_de_passe_confirmation')} onBlur={(e) => bl(e, 'mot_de_passe_confirmation')} />
+                  <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute -translate-y-1/2 right-4 top-1/2" style={{ color: '#4a6fa5' }}>
+                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {errors.mot_de_passe_confirmation && <p className="mt-2 text-sm font-semibold" style={{ color: '#ff7e5f' }}>{errors.mot_de_passe_confirmation}</p>}
+              </div>
+
+              {/* Conditions */}
+              <div>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input type="checkbox" name="acceptTerms" checked={formData.acceptTerms} onChange={handleChange}
+                    className="w-4 h-4 mt-1 rounded cursor-pointer" style={{ accentColor: '#4a6fa5' }} />
+                  <span className="text-sm" style={{ color: '#2b2d42' }}>
+                    J'accepte les{" "}
+                    <a href="#" className="font-bold" style={{ color: '#4a6fa5' }}>conditions d'utilisation</a>
+                  </span>
+                </label>
+                {errors.acceptTerms && <p className="mt-2 text-sm font-semibold" style={{ color: '#ff7e5f' }}>{errors.acceptTerms}</p>}
+              </div>
+
+              {/* Submit */}
+              <button type="submit" disabled={loading}
+                className="w-full h-12 text-sm font-semibold text-white rounded-xl transition-all hover:shadow-lg hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: 'linear-gradient(135deg, #4a6fa5, #3a5784)' }}>
+                {loading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white rounded-full border-t-transparent animate-spin"></div>
+                    Inscription en cours...
+                  </div>
+                ) : (userType === 'client' ? 'Créer mon compte client' : 'Créer mon compte artisan')}
+              </button>
+
             </div>
+          </form>
+
+          <div className="pt-4 mt-6 text-center border-t" style={{ borderColor: '#e9ecef' }}>
+            <p className="text-sm" style={{ color: '#2b2d42', opacity: 0.7 }}>
+              Déjà un compte ?{' '}
+              <Link to="/login" className="font-semibold transition-all hover:underline" style={{ color: '#ff7e5f' }}>
+                Se connecter
+              </Link>
+            </p>
+          </div>
         </div>
     );
 }
