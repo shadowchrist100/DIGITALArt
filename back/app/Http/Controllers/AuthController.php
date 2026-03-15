@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\Controller;
-use App\Models\RefreshedToken;
+use App\Models\Artisan;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Facades\DB;
 
@@ -28,9 +29,13 @@ class AuthController extends Controller
         // $credentials
         // $token =$user = [];
 
-        // connecté l'utilisateur, lui générer un accestoken 
+        $token = $user->createToken('auth_token', ['role:client'])->plainTextToken;
 
-        return $this->respond_with_token($token, $user);
+        return response()->json([
+            'message' => 'Compte client créé avec succès.',
+            'token'   => $token,
+            'user'    => $this->formatUser($user),
+        ], 201);
     }
 
     public function register(Request $request)
@@ -48,9 +53,68 @@ class AuthController extends Controller
         
         $token = auth('api')->login($user);
 
-        // céer l'utilisateur lui générer un accesToken
+        // Transaction pour garantir l'atomicité
+        $user = \DB::transaction(function () use ($data) {
+            $user = User::create([
+                'nom'          => $data['nom'],
+                'prenom'       => $data['prenom'],
+                'email'        => $data['email'],
+                'mot_de_passe' => Hash::make($data['mot_de_passe']),
+                'photo_profil' => $data['photo_profil'] ?? null,
+                'role'         => 'ARTISAN',
+            ]);
 
-        return $this->respond_with_token($token, $user);
+            $user->artisan()->create([
+                'telephone' => $data['telephone'],
+            ]);
+
+            return $user;
+        });
+
+        $token = $user->createToken('auth_token', ['role:artisan'])->plainTextToken;
+
+        return response()->json([
+            'message' => 'Compte artisan créé avec succès.',
+            'token'   => $token,
+            'user'    => $this->formatUser($user->load('artisan')),
+        ], 201);
+    }
+
+    // -------------------------------------------------------------------------
+    // LOGIN
+    // -------------------------------------------------------------------------
+
+    public function login(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email'        => ['required', 'email'],
+            'mot_de_passe' => ['required', 'string'],
+        ]);
+
+        $user = User::where('email', $data['email'])->first();
+
+        if (! $user || ! Hash::check($data['mot_de_passe'], $user->mot_de_passe)) {
+            throw ValidationException::withMessages([
+                'email' => ['Les identifiants sont incorrects.'],
+            ]);
+        }
+
+        // Révoque les anciens tokens pour n'avoir qu'une session active
+        $user->tokens()->delete();
+
+        $abilities = match ($user->role) {
+            'CLIENT'  => ['role:client'],
+            'ARTISAN' => ['role:artisan'],
+            default   => [],
+        };
+
+        $token = $user->createToken('auth_token', $abilities)->plainTextToken;
+
+        return response()->json([
+            'message' => 'Connexion réussie.',
+            'token'   => $token,
+            'user'    => $this->formatUser($user->load('artisan.atelier')),
+        ]);
     }
 
     public function logout() {}

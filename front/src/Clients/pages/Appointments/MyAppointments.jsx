@@ -1,331 +1,374 @@
-import { useState, useEffect } from 'react';
-import { Calendar, Clock, MapPin, Phone, CheckCircle, XCircle, AlertCircle, Eye } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import Card from '../../components/Common/Card';
-import Button from '../../components/Common/Button';
+import { useEffect, useState } from "react";
+import { Calendar, Clock, CheckCircle, XCircle, AlertCircle, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
+import { Link } from "react-router-dom";
+import { rendezVousAPI, authAPI } from "../../../../services/api";
+import Card   from "../../components/Common/Card";
+import Button from "../../components/Common/Button";
+
+const getStatut = (r) => r.statut ?? r.status ?? "EN_ATTENTE";
+
+const STATUS_STYLES = {
+  EN_ATTENTE: { bg: "rgba(251,146,60,0.1)",  color: "#fb923c",        Icon: Clock,        label: "En attente" },
+  ACCEPTE:    { bg: "rgba(74,111,165,0.1)",  color: "var(--primary)", Icon: CheckCircle,  label: "Confirmé"   },
+  REFUSE:     { bg: "rgba(239,68,68,0.1)",   color: "#ef4444",        Icon: XCircle,      label: "Refusé"     },
+  ANNULE:     { bg: "rgba(107,114,128,0.1)", color: "#6b7280",        Icon: XCircle,      label: "Annulé"     },
+};
+
+function StatusBadge({ statut }) {
+  const s = STATUS_STYLES[statut] ?? STATUS_STYLES.EN_ATTENTE;
+  return (
+    <div className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-full"
+      style={{ backgroundColor: s.bg, color: s.color }}>
+      <s.Icon className="w-3 h-3" />{s.label}
+    </div>
+  );
+}
 
 export default function MyAppointments() {
-  const [appointments, setAppointments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [userRole,     setUserRole]     = useState(null);
+  const [rdvs,         setRdvs]         = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState(null);
+  const [filterStatut, setFilterStatut] = useState("all");
+  const [pagination,   setPagination]   = useState({ current_page: 1, last_page: 1 });
 
   useEffect(() => {
-    const fetchAppointments = async () => {
-      setLoading(true);
-      // TODO: Appel API Laravel
-      setTimeout(() => {
-        setAppointments(mockAppointments);
-        setLoading(false);
-      }, 800);
-    };
+    authAPI.me()
+      .then(data => setUserRole(data.user?.role ?? data.role))
+      .catch(err => setError(err.message || "Impossible de récupérer le profil"));
+  }, []);
 
-    fetchAppointments();
-  }, [filterStatus]);
+  const fetchRdvs = async (page = 1) => {
+    if (!userRole) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = userRole === "CLIENT"
+        ? await rendezVousAPI.index()
+        : await rendezVousAPI.indexArtisan();
 
-  const getStatusBadge = (status) => {
-    const styles = {
-      EN_ATTENTE: { bg: 'rgba(251, 146, 60, 0.1)', color: '#fb923c', icon: Clock, label: 'En attente' },
-      ACCEPTE: { bg: 'rgba(74, 111, 165, 0.1)', color: 'var(--primary)', icon: CheckCircle, label: 'Confirmé' },
-      REFUSE: { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', icon: XCircle, label: 'Refusé' },
-      ANNULE: { bg: 'rgba(107, 114, 128, 0.1)', color: '#6b7280', icon: XCircle, label: 'Annulé' }
-    };
-    
-    const style = styles[status] || styles.EN_ATTENTE;
-    const Icon = style.icon;
+      const raw = data.rendez_vous ?? data.data ?? data ?? [];
+      if (raw?.data) {
+        setRdvs(raw.data);
+        setPagination({ current_page: raw.current_page, last_page: raw.last_page });
+      } else {
+        setRdvs(Array.isArray(raw) ? raw : []);
+        setPagination({ current_page: 1, last_page: 1 });
+      }
+    } catch (err) {
+      setError(err.message || "Impossible de récupérer les rendez-vous");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => { fetchRdvs(); }, [userRole]);
+
+  const handleAnnuler = async (id) => {
+    if (!window.confirm("Annuler ce rendez-vous ?")) return;
+    try {
+      await rendezVousAPI.annuler(id);
+      setRdvs(prev => prev.map(r => r.id === id ? { ...r, statut: "ANNULE" } : r));
+    } catch (err) { alert(err.message || "Erreur lors de l'annulation"); }
+  };
+
+  const handleAccepter = async (id) => {
+    try {
+      const res = await rendezVousAPI.accepter(id);
+      const updated = res.rendez_vous ?? res;
+      setRdvs(prev => prev.map(r => r.id === id ? { ...r, ...updated } : r));
+    } catch (err) { alert(err.message || "Erreur lors de l'acceptation"); }
+  };
+
+  const handleRefuser = async (id) => {
+    if (!window.confirm("Refuser ce rendez-vous ?")) return;
+    try {
+      const res = await rendezVousAPI.refuser(id);
+      const updated = res.rendez_vous ?? res;
+      setRdvs(prev => prev.map(r => r.id === id ? { ...r, ...updated } : r));
+    } catch (err) { alert(err.message || "Erreur lors du refus"); }
+  };
+
+  const countBy  = (val) => rdvs.filter(r => getStatut(r) === val).length;
+  const filtered = filterStatut === "all" ? rdvs : rdvs.filter(r => getStatut(r) === filterStatut);
+
+  const now      = new Date();
+  const upcoming = filtered.filter(r => new Date(r.date_rdv ?? r.date_heure) >= now);
+  const past     = filtered.filter(r => new Date(r.date_rdv ?? r.date_heure) < now);
+
+  const formatDate = (rdv) => {
+    const d = new Date(rdv.date_rdv ?? rdv.date_heure);
+    return isNaN(d) ? "—" : d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+  };
+  const formatTime = (rdv) => {
+    const d = new Date(rdv.date_rdv ?? rdv.date_heure);
+    return isNaN(d) ? "—" : d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const getDisplayName = (rdv) => {
+    if (userRole === "CLIENT") {
+      return (rdv.atelier?.nom ?? `${rdv.artisan?.prenom ?? ""} ${rdv.artisan?.nom ?? ""}`.trim()) || "Artisan";
+    }
+    return `${rdv.client?.prenom ?? ""} ${rdv.client?.nom ?? ""}`.trim() || rdv.client?.email || "Client";
+  };
+
+  const getAvatar = (rdv) => {
+    if (userRole === "CLIENT") return rdv.atelier?.image_url ?? rdv.artisan?.photo_profil ?? null;
+    return rdv.client?.photo_profil ?? null;
+  };
+
+  const getInitiale = (rdv) => getDisplayName(rdv).charAt(0).toUpperCase();
+
+  const RdvCard = ({ rdv, dimmed = false }) => {
+    const statut = getStatut(rdv);
     return (
-      <div className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-full" style={{ backgroundColor: style.bg, color: style.color }}>
-        <Icon className="w-3 h-3" />
-        {style.label}
-      </div>
+      <Card hover className={`p-6 ${dimmed ? "opacity-70" : ""}`}>
+        <div className="flex flex-col gap-6 md:flex-row">
+
+          <div className="flex-shrink-0 w-full overflow-hidden md:w-28 h-28 rounded-xl"
+            style={{ backgroundColor: "var(--gray)" }}>
+            {getAvatar(rdv) ? (
+              <img src={getAvatar(rdv)} alt={getDisplayName(rdv)} className="object-cover w-full h-full" />
+            ) : (
+              <div className="flex items-center justify-center w-full h-full text-3xl font-black text-white"
+                style={{ background: "linear-gradient(135deg, var(--primary), var(--primary-light))" }}>
+                {getInitiale(rdv)}
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h3 className="mb-1 text-xl font-bold" style={{ color: "var(--dark)" }}>
+                  {getDisplayName(rdv)}
+                </h3>
+                {userRole === "CLIENT" && rdv.atelier?.domaine && (
+                  <p className="mb-1 text-sm font-semibold" style={{ color: "var(--accent)" }}>
+                    {rdv.atelier.domaine}
+                  </p>
+                )}
+                {(rdv.description ?? rdv.motif) ? (
+                  <p className="text-sm" style={{ color: "var(--dark)", opacity: 0.7 }}>
+                    {rdv.description ?? rdv.motif}
+                  </p>
+                ) : null}
+              </div>
+              <StatusBadge statut={statut} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 p-4 mb-4 md:grid-cols-3 rounded-xl"
+              style={{ backgroundColor: "var(--gray)" }}>
+              <div className="flex items-center gap-2">
+                <Calendar className="flex-shrink-0 w-4 h-4" style={{ color: "var(--primary)" }} />
+                <div>
+                  <div className="text-xs" style={{ color: "var(--dark)", opacity: 0.6 }}>Date</div>
+                  <div className="text-sm font-bold" style={{ color: "var(--dark)" }}>{formatDate(rdv)}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock className="flex-shrink-0 w-4 h-4" style={{ color: "var(--primary)" }} />
+                <div>
+                  <div className="text-xs" style={{ color: "var(--dark)", opacity: 0.6 }}>Heure</div>
+                  <div className="text-sm font-bold" style={{ color: "var(--dark)" }}>{formatTime(rdv)}</div>
+                </div>
+              </div>
+              {rdv.duree_minutes && (
+                <div className="flex items-center gap-2">
+                  <Clock className="flex-shrink-0 w-4 h-4" style={{ color: "var(--accent)" }} />
+                  <div>
+                    <div className="text-xs" style={{ color: "var(--dark)", opacity: 0.6 }}>Durée</div>
+                    <div className="text-sm font-bold" style={{ color: "var(--dark)" }}>{rdv.duree_minutes} min</div>
+                  </div>
+                </div>
+              )}
+              {rdv.adresse && (
+                <div className="flex items-center col-span-2 gap-2 md:col-span-1">
+                  <MapPin className="flex-shrink-0 w-4 h-4" style={{ color: "var(--primary)" }} />
+                  <div>
+                    <div className="text-xs" style={{ color: "var(--dark)", opacity: 0.6 }}>Lieu</div>
+                    <div className="text-sm font-bold" style={{ color: "var(--dark)" }}>{rdv.adresse}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              {userRole === "CLIENT" && statut === "EN_ATTENTE" && (
+                <Button variant="outline" className="!px-4 !py-2 !text-sm"
+                  style={{ color: "#ef4444", borderColor: "#ef4444" }}
+                  onClick={() => handleAnnuler(rdv.id)}>
+                  Annuler
+                </Button>
+              )}
+              {userRole === "CLIENT" && statut === "ACCEPTE" && !dimmed === false && (
+                <Link to={`/reviews/write/${rdv.atelier?.id ?? rdv.atelier_id}`}>
+                  <Button variant="secondary" className="!px-4 !py-2 !text-sm">
+                    Laisser un avis
+                  </Button>
+                </Link>
+              )}
+              {userRole === "ARTISAN" && statut === "EN_ATTENTE" && (
+                <>
+                  <Button variant="primary" className="!px-4 !py-2 !text-sm"
+                    onClick={() => handleAccepter(rdv.id)}>
+                    Accepter
+                  </Button>
+                  <Button variant="outline" className="!px-4 !py-2 !text-sm"
+                    style={{ color: "#ef4444", borderColor: "#ef4444" }}
+                    onClick={() => handleRefuser(rdv.id)}>
+                    Refuser
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </Card>
     );
   };
 
-  const handleCancelAppointment = async (appointmentId) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir annuler ce rendez-vous ?')) return;
-    
-    // TODO: Appel API
-    console.log('Annuler RDV:', appointmentId);
-    
-    // Refetch appointments after cancellation
-    setLoading(true);
-    setTimeout(() => {
-      setAppointments(mockAppointments);
-      setLoading(false);
-    }, 800);
+  const goToPage = (page) => {
+    if (page < 1 || page > pagination.last_page) return;
+    fetchRdvs(page);
   };
 
-  const filteredAppointments = filterStatus === 'all' 
-    ? appointments 
-    : appointments.filter(a => a.status === filterStatus);
-
-  // Séparer les RDV à venir et passés
-  const upcomingAppointments = filteredAppointments.filter(a => new Date(a.dateTime) >= new Date());
-  const pastAppointments = filteredAppointments.filter(a => new Date(a.dateTime) < new Date());
-
   return (
-    <div className="min-h-screen pt-24 pb-20" style={{ backgroundColor: 'var(--light)' }}>
+    <div className="min-h-screen pt-24 pb-20" style={{ backgroundColor: "var(--light)" }}>
       <div className="px-4 mx-auto max-w-7xl sm:px-6 lg:px-8">
-        
+
         {/* Header */}
         <div className="mb-10">
-          <div className="inline-flex items-center gap-2 px-4 py-2 mb-6 text-sm font-semibold rounded-full" style={{ backgroundColor: 'rgba(74, 111, 165, 0.1)', color: 'var(--primary)' }}>
+          <div className="inline-flex items-center gap-2 px-4 py-2 mb-6 text-sm font-semibold rounded-full"
+            style={{ backgroundColor: "rgba(74,111,165,0.1)", color: "var(--primary)" }}>
             <Calendar className="w-4 h-4" />
-            {filteredAppointments.length} rendez-vous
+            {rdvs.length} rendez-vous
           </div>
-          
-          <h1 className="mb-4 text-4xl font-black md:text-5xl" style={{ color: 'var(--dark)' }}>
+
+          <h1 className="mb-4 text-4xl font-black md:text-5xl" style={{ color: "var(--dark)" }}>
             Mes
-            <span className="text-transparent bg-clip-text" style={{ background: 'linear-gradient(90deg, var(--primary), var(--primary-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              {' '}rendez-vous
+            <span className="text-transparent bg-clip-text"
+              style={{ background: "linear-gradient(90deg, var(--primary), var(--primary-light))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              {" "}rendez-vous
             </span>
           </h1>
-          <p className="mb-6 text-lg" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-            Gérez vos rendez-vous avec les artisans
-          </p>
 
-          <Link to="/appointments/book">
-            <Button variant="primary">
-              <Calendar className="w-5 h-5" />
-              Prendre un rendez-vous
-            </Button>
-          </Link>
+          <p className="text-lg" style={{ color: "var(--dark)", opacity: 0.7 }}>
+            {userRole === "ARTISAN"
+              ? "Gérez les rendez-vous de vos clients"
+              : "Suivez et gérez vos rendez-vous avec les artisans"}
+          </p>
         </div>
 
         {/* Filtres */}
         <Card className="mb-8">
           <div className="flex flex-wrap gap-2">
             {[
-              { value: 'all', label: 'Tous', count: appointments.length },
-              { value: 'EN_ATTENTE', label: 'En attente', count: appointments.filter(a => a.status === 'EN_ATTENTE').length },
-              { value: 'ACCEPTE', label: 'Confirmés', count: appointments.filter(a => a.status === 'ACCEPTE').length }
-            ].map(filter => (
-              <button
-                key={filter.value}
-                onClick={() => setFilterStatus(filter.value)}
+              { value: "all",        label: "Tous",       count: rdvs.length           },
+              { value: "EN_ATTENTE", label: "En attente", count: countBy("EN_ATTENTE") },
+              { value: "ACCEPTE",    label: "Confirmés",  count: countBy("ACCEPTE")    },
+              { value: "REFUSE",     label: "Refusés",    count: countBy("REFUSE")     },
+              { value: "ANNULE",     label: "Annulés",    count: countBy("ANNULE")     },
+            ].map(f => (
+              <button key={f.value} onClick={() => setFilterStatut(f.value)}
                 className="px-4 py-2 text-sm font-bold transition-all rounded-lg"
                 style={{
-                  backgroundColor: filterStatus === filter.value ? 'var(--primary)' : 'white',
-                  color: filterStatus === filter.value ? 'white' : 'var(--dark)',
-                  border: `2px solid ${filterStatus === filter.value ? 'var(--primary)' : 'var(--gray-dark)'}`
-                }}
-              >
-                {filter.label} ({filter.count})
+                  backgroundColor: filterStatut === f.value ? "var(--primary)" : "white",
+                  color:           filterStatut === f.value ? "white" : "var(--dark)",
+                  border: `2px solid ${filterStatut === f.value ? "var(--primary)" : "var(--gray-dark)"}`,
+                }}>
+                {f.label} ({f.count})
               </button>
             ))}
           </div>
         </Card>
 
+        {/* États */}
+        {error && (
+          <Card className="py-10 mb-8 text-center">
+            <p className="mb-4 font-semibold" style={{ color: "#e74c3c" }}>⚠️ {error}</p>
+            <Button onClick={() => fetchRdvs()}>Réessayer</Button>
+          </Card>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="w-12 h-12 border-4 rounded-full border-t-transparent animate-spin" style={{ borderColor: 'var(--primary)' }}></div>
+            <div className="w-12 h-12 border-4 rounded-full border-t-transparent animate-spin"
+              style={{ borderColor: "var(--primary)" }} />
           </div>
+        ) : !error && filtered.length === 0 ? (
+          <Card className="py-20 text-center">
+            <div className="flex items-center justify-center w-20 h-20 mx-auto mb-6 rounded-full"
+              style={{ backgroundColor: "rgba(74,111,165,0.1)" }}>
+              <AlertCircle className="w-10 h-10" style={{ color: "var(--primary)" }} />
+            </div>
+            <h3 className="mb-3 text-2xl font-bold" style={{ color: "var(--dark)" }}>Aucun rendez-vous</h3>
+            <p className="text-sm" style={{ color: "var(--dark)", opacity: 0.7 }}>
+              {userRole === "ARTISAN"
+                ? "Aucun rendez-vous reçu pour l'instant."
+                : "Vous n'avez pas encore de rendez-vous planifié."}
+            </p>
+          </Card>
         ) : (
           <div className="space-y-8">
-            {/* Rendez-vous à venir */}
-            {upcomingAppointments.length > 0 && (
+            {upcoming.length > 0 && (
               <div>
-                <h2 className="flex items-center gap-2 mb-4 text-2xl font-bold" style={{ color: 'var(--dark)' }}>
-                  <Calendar className="w-6 h-6" style={{ color: 'var(--primary)' }} />
-                  À venir ({upcomingAppointments.length})
+                <h2 className="flex items-center gap-2 mb-4 text-2xl font-bold" style={{ color: "var(--dark)" }}>
+                  <Calendar className="w-6 h-6" style={{ color: "var(--primary)" }} />
+                  À venir <span className="text-lg font-semibold" style={{ color: "var(--primary)" }}>({upcoming.length})</span>
                 </h2>
                 <div className="space-y-4">
-                  {upcomingAppointments.map(appointment => (
-                    <Card key={appointment.id} hover className="p-6">
-                      <div className="flex flex-col gap-6 md:flex-row">
-                        {/* Image artisan */}
-                        <div className="flex-shrink-0 w-full h-32 overflow-hidden md:w-32 rounded-xl" style={{ backgroundColor: 'var(--gray)' }}>
-                          <img src={appointment.artisan.image} alt={appointment.artisan.name} className="object-cover w-full h-full" />
-                        </div>
-
-                        {/* Infos */}
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <h3 className="mb-1 text-xl font-bold" style={{ color: 'var(--dark)' }}>
-                                {appointment.artisan.name}
-                              </h3>
-                              <p className="mb-2 text-sm font-semibold" style={{ color: 'var(--accent)' }}>
-                                {appointment.artisan.specialty}
-                              </p>
-                              <p className="text-sm" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                                {appointment.service}
-                              </p>
-                            </div>
-                            {getStatusBadge(appointment.status)}
-                          </div>
-
-                          <div className="grid grid-cols-1 gap-4 p-4 mb-4 rounded-lg md:grid-cols-3" style={{ backgroundColor: 'var(--gray)' }}>
-                            <div className="flex items-center gap-2">
-                              <Calendar className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                              <div>
-                                <div className="text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>
-                                  Date
-                                </div>
-                                <div className="text-sm font-bold" style={{ color: 'var(--dark)' }}>
-                                  {appointment.date}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Clock className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                              <div>
-                                <div className="text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>
-                                  Heure
-                                </div>
-                                <div className="text-sm font-bold" style={{ color: 'var(--dark)' }}>
-                                  {appointment.time}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <MapPin className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                              <div>
-                                <div className="text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>
-                                  Lieu
-                                </div>
-                                <div className="text-sm font-bold" style={{ color: 'var(--dark)' }}>
-                                  {appointment.location}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex gap-3">
-                            <Link to={`/appointment/${appointment.id}`}>
-                              <Button variant="outline" className="!px-4 !py-2 !text-sm">
-                                <Eye className="w-4 h-4" />
-                                Détails
-                              </Button>
-                            </Link>
-                            
-                            {appointment.status === 'ACCEPTE' && (
-                              <Button variant="primary" className="!px-4 !py-2 !text-sm">
-                                <Phone className="w-4 h-4" />
-                                Contacter
-                              </Button>
-                            )}
-                            
-                            {['EN_ATTENTE', 'ACCEPTE'].includes(appointment.status) && (
-                              <Button 
-                                variant="outline" 
-                                className="!px-4 !py-2 !text-sm text-red-500"
-                                onClick={() => handleCancelAppointment(appointment.id)}
-                              >
-                                Annuler
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
+                  {upcoming.map(rdv => <RdvCard key={rdv.id} rdv={rdv} />)}
                 </div>
               </div>
             )}
-
-            {/* Rendez-vous passés */}
-            {pastAppointments.length > 0 && (
+            {past.length > 0 && (
               <div>
-                <h2 className="flex items-center gap-2 mb-4 text-2xl font-bold" style={{ color: 'var(--dark)', opacity: 0.7 }}>
+                <h2 className="flex items-center gap-2 mb-4 text-2xl font-bold"
+                  style={{ color: "var(--dark)", opacity: 0.6 }}>
                   <Clock className="w-6 h-6" />
-                  Passés ({pastAppointments.length})
+                  Passés <span className="text-lg font-semibold">({past.length})</span>
                 </h2>
-                <div className="space-y-4 opacity-75">
-                  {pastAppointments.map(appointment => (
-                    <Card key={appointment.id} className="p-6">
-                      <div className="flex items-center gap-6">
-                        <div className="flex-shrink-0 w-20 h-20 overflow-hidden rounded-xl" style={{ backgroundColor: 'var(--gray)' }}>
-                          <img src={appointment.artisan.image} alt={appointment.artisan.name} className="object-cover w-full h-full" />
-                        </div>
-                        
-                        <div className="flex-1">
-                          <h4 className="mb-1 text-lg font-bold" style={{ color: 'var(--dark)' }}>
-                            {appointment.artisan.name}
-                          </h4>
-                          <p className="mb-2 text-sm" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                            {appointment.date} à {appointment.time}
-                          </p>
-                        </div>
-
-                        <Link to={`/reviews/write/${appointment.artisan.id}`}>
-                          <Button variant="secondary" className="!px-4 !py-2 !text-sm">
-                            Laisser un avis
-                          </Button>
-                        </Link>
-                      </div>
-                    </Card>
-                  ))}
+                <div className="space-y-4">
+                  {past.map(rdv => <RdvCard key={rdv.id} rdv={rdv} dimmed />)}
                 </div>
               </div>
-            )}
-
-            {/* Aucun rendez-vous */}
-            {filteredAppointments.length === 0 && (
-              <Card className="py-20 text-center">
-                <div className="flex items-center justify-center w-20 h-20 mx-auto mb-6 rounded-full" style={{ backgroundColor: 'rgba(74, 111, 165, 0.1)' }}>
-                  <Calendar className="w-10 h-10" style={{ color: 'var(--primary)' }} />
-                </div>
-                <h3 className="mb-3 text-2xl font-bold" style={{ color: 'var(--dark)' }}>
-                  Aucun rendez-vous
-                </h3>
-                <p className="mb-6 text-sm" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                  Vous n'avez pas encore de rendez-vous prévu
-                </p>
-                <Link to="/appointments/book">
-                  <Button>Prendre un rendez-vous</Button>
-                </Link>
-              </Card>
             )}
           </div>
         )}
+
+        {/* Pagination */}
+        {pagination.last_page > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-10">
+            <button
+              disabled={pagination.current_page === 1}
+              onClick={() => goToPage(pagination.current_page - 1)}
+              className="flex items-center justify-center w-10 h-10 font-bold border-2 rounded-xl disabled:opacity-40"
+              style={{ borderColor: "var(--primary)", color: "var(--primary)" }}>
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            {Array.from({ length: pagination.last_page }, (_, i) => i + 1).map(page => (
+              <button key={page} onClick={() => goToPage(page)}
+                className="flex items-center justify-center w-10 h-10 text-sm font-bold transition-all border-2 rounded-xl"
+                style={{
+                  backgroundColor: page === pagination.current_page ? "var(--primary)" : "white",
+                  color:           page === pagination.current_page ? "white" : "var(--dark)",
+                  borderColor:     page === pagination.current_page ? "var(--primary)" : "var(--gray-dark)",
+                }}>
+                {page}
+              </button>
+            ))}
+            <button
+              disabled={pagination.current_page === pagination.last_page}
+              onClick={() => goToPage(pagination.current_page + 1)}
+              className="flex items-center justify-center w-10 h-10 font-bold border-2 rounded-xl disabled:opacity-40"
+              style={{ borderColor: "var(--primary)", color: "var(--primary)" }}>
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
       </div>
     </div>
   );
 }
-
-// Mock data
-const mockAppointments = [
-  {
-    id: 2001,
-    artisan: {
-      name: 'Jean Kouassi',
-      specialty: 'Plomberie',
-      image: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=200'
-    },
-    service: 'Réparation fuite d\'eau',
-    date: '18 Jan 2026',
-    time: '10:00',
-    dateTime: '2026-01-18T10:00:00',
-    location: 'Cotonou',
-    status: 'ACCEPTE'
-  },
-  {
-    id: 2002,
-    artisan: {
-      name: 'Marie Dossou',
-      specialty: 'Électricité',
-      image: 'https://images.unsplash.com/photo-1573164713714-d95e436ab8d6?w=200'
-    },
-    service: 'Installation prises',
-    date: '22 Jan 2026',
-    time: '14:30',
-    dateTime: '2026-01-22T14:30:00',
-    location: 'Porto-Novo',
-    status: 'EN_ATTENTE'
-  },
-  {
-    id: 2003,
-    artisan: {
-      name: 'Pierre Agbodji',
-      specialty: 'Menuiserie',
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200'
-    },
-    service: 'Fabrication meuble',
-    date: '10 Jan 2026',
-    time: '09:00',
-    dateTime: '2026-01-10T09:00:00',
-    location: 'Parakou',
-    status: 'ACCEPTE'
-  }
-];

@@ -1,580 +1,420 @@
-import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
-  Star,
-  MapPin,
-  Phone,
-  Mail,
-  Calendar,
-  Clock,
-  Award,
-  Shield,
-  MessageCircle,
-  ChevronLeft,
-  Heart,
-  Share2,
-  CheckCircle
+  Star, MapPin, Calendar, Clock, Shield,
+  MessageCircle, ChevronLeft, Heart, Share2, CheckCircle,
+  Edit, Plus, Store, Hammer, AlertCircle, Loader
 } from 'lucide-react';
-import Button from '../../components/Common/Button';
-import Card from '../../components/Common/Card';
+import { useAuth } from '../../components/Auth/AuthContext';
+import { atelierAPI } from '../../../../services/api';
 
 export default function ArtisanDetail() {
-  const { id } = useParams();
-  const [activeTab, setActiveTab] = useState('about');
-  const [selectedImage, setSelectedImage] = useState(0);
+  const { id }      = useParams();
+  const navigate    = useNavigate();
+  const { user }    = useAuth(); // token géré par api.js — plus besoin de accesToken
 
-  // TODO: Fetch artisan data from API
-  const artisan = mockArtisan;
+  const [atelier,      setAtelier]      = useState(null);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState(null);
+  const [activeTab,    setActiveTab]    = useState('about');
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
 
-  const tabs = [
-    { id: 'about', label: 'À propos' },
-    { id: 'gallery', label: 'Galerie' },
-    { id: 'offers', label: 'Offres' },
-    { id: 'reviews', label: 'Avis' }
-  ];
+  // ── GET /ateliers/:id  (+ /mon-atelier si c'est le sien) ──
+  useEffect(() => {
+    const fetchAtelier = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data        = await atelierAPI.show(id);
+        const atelierData = data.atelier ?? data;
+        setAtelier(atelierData);
+
+        // Vérifie si c'est le propre atelier de l'artisan connecté
+        const artisanUserId = atelierData?.artisan?.utilisateur_id
+          ?? atelierData?.artisan?.utilisateur?.id;
+
+        if (user && artisanUserId && String(artisanUserId) === String(user.id)) {
+          setIsOwnProfile(true);
+          try {
+            // Recharge les données complètes (offres, oeuvres, galerie…)
+            const dataMine = await atelierAPI.monAtelier();
+            setAtelier(dataMine.atelier ?? dataMine);
+          } catch { /* garder les données publiques si ça échoue */ }
+        }
+      } catch (e) {
+        setError(e.message || 'Atelier introuvable');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAtelier();
+  }, [id, user]);
+
+  // ── Helpers ────────────────────────────────────────────────
+  const artisanUser = atelier?.artisan?.utilisateur ?? null;
+  const fullName    = artisanUser
+    ? `${artisanUser.prenom ?? ''} ${artisanUser.nom ?? ''}`.trim() || atelier?.nom
+    : atelier?.nom ?? '';
+  const initiale    = fullName.charAt(0).toUpperCase();
+  const photo       = artisanUser?.photo_profil ?? atelier?.image_url ?? atelier?.image_principale ?? null;
+  const coverPhoto  = atelier?.image_url ?? atelier?.image_principale ?? null;
+  const rating      = atelier?.avis_avg_note ? Number(atelier.avis_avg_note).toFixed(1) : null;
+  const avisCount   = atelier?.avis_count ?? atelier?.avis?.length ?? 0;
+
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-screen">
+      <Loader className="w-10 h-10 animate-spin" style={{ color: '#4a6fa5' }} />
+    </div>
+  );
+
+  if (error || !atelier) return (
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+      <AlertCircle className="w-12 h-12" style={{ color: '#ff7e5f' }} />
+      <p className="text-lg font-bold" style={{ color: '#2b2d42' }}>{error ?? 'Atelier introuvable'}</p>
+      <Link to="/artisans">
+        <button className="px-6 py-3 font-bold text-white rounded-xl"
+          style={{ background: 'linear-gradient(135deg, #4a6fa5, #3a5784)' }}>
+          Retour à la liste
+        </button>
+      </Link>
+    </div>
+  );
+
+  const tabs = isOwnProfile
+    ? [
+        { id: 'about',   label: 'Mon profil'  },
+        { id: 'atelier', label: 'Mon atelier' },
+      ]
+    : [
+        { id: 'about',   label: 'À propos'                },
+        { id: 'atelier', label: 'Atelier & Offres'        },
+        { id: 'reviews', label: `Avis (${avisCount})`     },
+      ];
 
   return (
-    <div className="min-h-screen pt-24 pb-20" style={{ backgroundColor: 'var(--light)' }}>
+    <div className="min-h-screen pt-24 pb-20" style={{ backgroundColor: '#f8fafc' }}>
       <div className="px-4 mx-auto max-w-7xl sm:px-6 lg:px-8">
-        
-        {/* Breadcrumb */}
+
         <div className="mb-6">
-          <Link to="/artisans" className="inline-flex items-center gap-2 text-sm font-bold transition-all" style={{ color: 'var(--primary)' }}>
-            <ChevronLeft className="w-4 h-4" />
-            Retour aux artisans
+          <Link to="/artisans" className="inline-flex items-center gap-2 text-sm font-bold"
+            style={{ color: '#4a6fa5' }}>
+            <ChevronLeft className="w-4 h-4" /> Retour aux ateliers
           </Link>
         </div>
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-          
-          {/* Colonne principale */}
+
+          {/* ── Colonne principale */}
           <div className="space-y-8 lg:col-span-2">
-            
+
             {/* Hero Card */}
-            <Card className="!p-0 overflow-hidden">
-              {/* Image principale */}
-              <div className="relative h-80" style={{ backgroundColor: 'var(--gray)' }}>
-                <img
-                  src={artisan.gallery[selectedImage]}
-                  alt={artisan.name}
-                  className="object-cover w-full h-full"
-                />
-                
-                {/* Badges */}
-                <div className="absolute flex gap-2 top-4 left-4">
-                  {artisan.verified && (
-                    <div className="flex items-center gap-1 px-3 py-1 text-sm font-bold bg-white rounded-full shadow-lg" style={{ color: 'var(--primary)' }}>
-                      <Shield className="w-4 h-4" />
-                      Vérifié
-                    </div>
-                  )}
-                  {artisan.available && (
-                    <div className="px-3 py-1 text-sm font-bold text-white rounded-full shadow-lg" style={{ backgroundColor: '#22c55e' }}>
-                      Disponible
-                    </div>
-                  )}
-                </div>
+            <div className="overflow-hidden bg-white shadow-lg rounded-2xl">
+              <div className="relative h-64"
+                style={{ background: 'linear-gradient(135deg, #4a6fa5 0%, #2d4a7c 100%)' }}>
+                {coverPhoto && (
+                  <img src={coverPhoto} alt={fullName}
+                    className="object-cover w-full h-full opacity-30" />
+                )}
 
-                {/* Actions */}
-                <div className="absolute flex gap-2 top-4 right-4">
-                  <button className="flex items-center justify-center w-10 h-10 transition-all bg-white rounded-full shadow-lg hover:scale-110">
-                    <Heart className="w-5 h-5" style={{ color: 'var(--accent)' }} />
-                  </button>
-                  <button className="flex items-center justify-center w-10 h-10 transition-all bg-white rounded-full shadow-lg hover:scale-110">
-                    <Share2 className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-                  </button>
-                </div>
-
-                {/* Miniatures */}
-                <div className="absolute flex gap-2 overflow-x-auto bottom-4 left-4 right-4">
-                  {artisan.gallery.map((img, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setSelectedImage(idx)}
-                      className={`w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 transition-all ${selectedImage === idx ? 'ring-4' : 'opacity-60 hover:opacity-100'}`}
-                      style={{ ringColor: 'var(--primary)' }}
-                    >
-                      <img src={img} alt={`Vue ${idx + 1}`} className="object-cover w-full h-full" />
+                {!isOwnProfile && (
+                  <div className="absolute flex gap-2 top-4 right-4">
+                    <button className="flex items-center justify-center w-10 h-10 transition-all bg-white rounded-full shadow hover:scale-110">
+                      <Heart className="w-5 h-5" style={{ color: '#ff7e5f' }} />
                     </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Info principale */}
-              <div className="p-8">
-                <div className="flex items-start justify-between mb-6">
-                  <div>
-                    <h1 className="mb-2 text-3xl font-black" style={{ color: 'var(--dark)' }}>
-                      {artisan.name}
-                    </h1>
-                    <p className="mb-2 text-lg font-bold" style={{ color: 'var(--accent)' }}>
-                      {artisan.specialty}
-                    </p>
-                    <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                      <MapPin className="w-4 h-4" />
-                      <span>{artisan.location}</span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="mb-1 text-3xl font-black" style={{ color: 'var(--primary)' }}>
-                      {artisan.rating}
-                    </div>
-                    <div className="flex items-center mb-1">
-                      {[...Array(5)].map((_, i) => (
-                        <Star
-                          key={i}
-                          className={`w-4 h-4 ${i < Math.floor(artisan.rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
-                        />
-                      ))}
-                    </div>
-                    <div className="text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>
-                      {artisan.reviews} avis
-                    </div>
-                  </div>
-                </div>
-
-                {/* Stats rapides */}
-                <div className="grid grid-cols-3 gap-4 mb-6">
-                  <div className="p-4 text-center rounded-xl" style={{ backgroundColor: 'rgba(74, 111, 165, 0.1)' }}>
-                    <div className="mb-1 text-2xl font-black" style={{ color: 'var(--primary)' }}>
-                      {artisan.experience}+
-                    </div>
-                    <div className="text-xs" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                      ans d'expérience
-                    </div>
-                  </div>
-                  <div className="p-4 text-center rounded-xl" style={{ backgroundColor: 'rgba(255, 126, 95, 0.1)' }}>
-                    <div className="mb-1 text-2xl font-black" style={{ color: 'var(--accent)' }}>
-                      {artisan.completedProjects}
-                    </div>
-                    <div className="text-xs" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                      projets réalisés
-                    </div>
-                  </div>
-                  <div className="p-4 text-center rounded-xl" style={{ backgroundColor: 'rgba(34, 197, 94, 0.1)' }}>
-                    <div className="mb-1 text-2xl font-black" style={{ color: '#22c55e' }}>
-                      98%
-                    </div>
-                    <div className="text-xs" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                      satisfaction client
-                    </div>
-                  </div>
-                </div>
-
-                {/* Certifications */}
-                {artisan.certifications.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {artisan.certifications.map((cert, idx) => (
-                      <div key={idx} className="flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-full" style={{ backgroundColor: 'rgba(74, 111, 165, 0.1)', color: 'var(--primary)' }}>
-                        <Award className="w-3 h-3" />
-                        {cert}
-                      </div>
-                    ))}
+                    <button className="flex items-center justify-center w-10 h-10 transition-all bg-white rounded-full shadow hover:scale-110">
+                      <Share2 className="w-5 h-5" style={{ color: '#4a6fa5' }} />
+                    </button>
                   </div>
                 )}
+
+                {isOwnProfile && (
+                  <div className="absolute top-4 right-4">
+                    <Link to="/profile/edit">
+                      <button className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white transition-all border-2 border-white rounded-xl hover:bg-white hover:text-blue-900">
+                        <Edit className="w-4 h-4" /> Modifier mon profil
+                      </button>
+                    </Link>
+                  </div>
+                )}
+
+                <div className="absolute -bottom-12 left-8">
+                  <div className="w-24 h-24 overflow-hidden border-4 border-white rounded-full shadow-xl"
+                    style={{ background: 'linear-gradient(135deg, #ff7e5f, #feb47b)' }}>
+                    {photo ? (
+                      <img src={photo} alt={fullName} className="object-cover w-full h-full" />
+                    ) : (
+                      <div className="flex items-center justify-center w-full h-full text-4xl font-black text-white">
+                        {initiale}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </Card>
+
+              <div className="px-8 pt-16 pb-8">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h1 className="mb-1 text-3xl font-black" style={{ color: '#2b2d42' }}>{fullName}</h1>
+                    <p className="mb-1 text-lg font-bold" style={{ color: '#ff7e5f' }}>{atelier.domaine}</p>
+                    {atelier.localisation && (
+                      <div className="flex items-center gap-1 text-sm" style={{ color: '#2b2d42', opacity: 0.6 }}>
+                        <MapPin className="w-4 h-4" />{atelier.localisation}
+                      </div>
+                    )}
+                  </div>
+                  {rating && (
+                    <div className="text-right">
+                      <div className="text-3xl font-black" style={{ color: '#4a6fa5' }}>{rating}</div>
+                      <div className="flex items-center justify-end mb-1">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} className={`w-4 h-4 ${i < Math.floor(rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
+                        ))}
+                      </div>
+                      <div className="text-xs" style={{ color: '#2b2d42', opacity: 0.5 }}>{avisCount} avis</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
 
             {/* Onglets */}
-            <Card className="!p-0">
-              {/* Tabs header */}
-              <div className="flex overflow-x-auto border-b" style={{ borderColor: 'var(--gray-dark)' }}>
+            <div className="overflow-hidden bg-white shadow-lg rounded-2xl">
+              <div className="flex overflow-x-auto border-b" style={{ borderColor: '#e9ecef' }}>
                 {tabs.map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                  <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                     className="px-6 py-4 text-sm font-bold transition-all whitespace-nowrap"
                     style={{
-                      color: activeTab === tab.id ? 'var(--primary)' : 'var(--dark)',
-                      borderBottom: activeTab === tab.id ? '3px solid var(--primary)' : '3px solid transparent'
-                    }}
-                  >
+                      color:        activeTab === tab.id ? '#4a6fa5' : '#2b2d42',
+                      borderBottom: activeTab === tab.id ? '3px solid #4a6fa5' : '3px solid transparent',
+                    }}>
                     {tab.label}
                   </button>
                 ))}
               </div>
 
-              {/* Tabs content */}
               <div className="p-8">
+
+                {/* ── À propos */}
                 {activeTab === 'about' && (
                   <div className="space-y-6">
-                    <div>
-                      <h3 className="mb-3 text-xl font-bold" style={{ color: 'var(--dark)' }}>
-                        À propos de {artisan.name}
-                      </h3>
-                      <p className="text-sm leading-relaxed" style={{ color: 'var(--dark)', opacity: 0.8 }}>
-                        {artisan.description}
-                      </p>
-                    </div>
-
-                    <div>
-                      <h3 className="mb-3 text-xl font-bold" style={{ color: 'var(--dark)' }}>
-                        Spécialités
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {artisan.skills.map((skill, idx) => (
-                          <div key={idx} className="px-4 py-2 text-sm font-bold rounded-lg" style={{ backgroundColor: 'var(--gray)', color: 'var(--dark)' }}>
-                            {skill}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <h3 className="mb-3 text-xl font-bold" style={{ color: 'var(--dark)' }}>
-                        Horaires de travail
-                      </h3>
-                      <div className="space-y-2">
-                        {artisan.workingHours.map((day, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-sm">
-                            <span className="font-bold" style={{ color: 'var(--dark)' }}>{day.day}</span>
-                            <span style={{ color: 'var(--dark)', opacity: 0.7 }}>{day.hours}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'gallery' && (
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-                    {artisan.portfolio.map((img, idx) => (
-                      <div key={idx} className="overflow-hidden transition-transform cursor-pointer aspect-square rounded-xl hover:scale-105">
-                        <img src={img} alt={`Projet ${idx + 1}`} className="object-cover w-full h-full" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {activeTab === 'offers' && (
-                  <div className="space-y-4">
-                    {artisan.offers.map((offer) => (
-                      <Card key={offer.id} hover className="p-6">
-                        <div className="flex items-start justify-between mb-4">
-                          <div>
-                            <h4 className="mb-2 text-lg font-bold" style={{ color: 'var(--dark)' }}>
-                              {offer.title}
-                            </h4>
-                            <p className="mb-3 text-sm" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                              {offer.description}
-                            </p>
-                            <div className="text-2xl font-black" style={{ color: 'var(--accent)' }}>
-                              {offer.price} FCFA
-                            </div>
-                          </div>
-                          <Button variant="secondary" className="whitespace-nowrap">
-                            Commander
-                          </Button>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-
-                {activeTab === 'reviews' && (
-                  <div className="space-y-6">
-                    {/* Statistiques avis */}
-                    <div className="grid grid-cols-2 gap-6 p-6 rounded-xl" style={{ backgroundColor: 'var(--gray)' }}>
+                    {atelier.description ? (
                       <div>
-                        <div className="mb-2 text-5xl font-black" style={{ color: 'var(--primary)' }}>
-                          {artisan.rating}
-                        </div>
-                        <div className="flex items-center mb-2">
-                          {[...Array(5)].map((_, i) => (
-                            <Star key={i} className={`w-5 h-5 ${i < Math.floor(artisan.rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
-                          ))}
-                        </div>
-                        <div className="text-sm" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                          Basé sur {artisan.reviews} avis
-                        </div>
+                        <h3 className="mb-3 text-xl font-bold" style={{ color: '#2b2d42' }}>Description</h3>
+                        <p className="text-sm leading-relaxed" style={{ color: '#2b2d42', opacity: 0.8 }}>
+                          {atelier.description}
+                        </p>
                       </div>
-                      <div className="space-y-2">
-                        {[5, 4, 3, 2, 1].map(star => (
-                          <div key={star} className="flex items-center gap-2">
-                            <span className="w-3 text-sm font-bold">{star}</span>
-                            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                            <div className="flex-1 h-2 overflow-hidden rounded-full" style={{ backgroundColor: 'white' }}>
-                              <div
-                                className="h-full rounded-full"
-                                style={{
-                                  backgroundColor: 'var(--primary)',
-                                  width: `${star === 5 ? 80 : star === 4 ? 15 : 3}%`
-                                }}
-                              ></div>
+                    ) : isOwnProfile ? (
+                      <div className="p-4 text-center border-2 border-dashed rounded-xl" style={{ borderColor: '#e9ecef' }}>
+                        <p className="mb-3 text-sm" style={{ color: '#2b2d42', opacity: 0.5 }}>
+                          Pas encore de description.
+                        </p>
+                        <button onClick={() => navigate(`/atelier/${atelier.id}/edit`)}
+                          className="px-4 py-2 text-sm font-bold text-white rounded-lg"
+                          style={{ background: 'linear-gradient(135deg, #4a6fa5, #3a5784)' }}>
+                          Compléter mon atelier
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {atelier.domaine && (
+                      <div>
+                        <h3 className="mb-3 text-xl font-bold" style={{ color: '#2b2d42' }}>Domaine</h3>
+                        <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-full"
+                          style={{ backgroundColor: 'rgba(74,111,165,0.1)', color: '#4a6fa5' }}>
+                          <Hammer className="w-4 h-4" />{atelier.domaine}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Atelier & Offres */}
+                {activeTab === 'atelier' && (
+                  <div>
+                    {isOwnProfile && !atelier ? (
+                      <div className="py-12 text-center">
+                        <Store className="w-10 h-10 mx-auto mb-4" style={{ color: '#ff7e5f' }} />
+                        <h3 className="mb-3 text-2xl font-bold" style={{ color: '#2b2d42' }}>
+                          Vous n'avez pas encore d'atelier
+                        </h3>
+                        <button onClick={() => navigate('/atelier/create')}
+                          className="inline-flex items-center gap-2 px-8 py-4 font-bold text-white rounded-xl"
+                          style={{ background: 'linear-gradient(135deg, #ff7e5f, #feb47b)' }}>
+                          <Plus className="w-5 h-5" /> Créer mon atelier
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="mb-1 text-2xl font-black" style={{ color: '#2b2d42' }}>{atelier.nom}</h3>
+                            <div className="flex items-center gap-2 mb-2 text-sm" style={{ color: '#2b2d42', opacity: 0.6 }}>
+                              <MapPin className="w-4 h-4" />{atelier.localisation}
                             </div>
-                            <span className="text-xs" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                              ({star === 5 ? 102 : star === 4 ? 19 : 3})
+                            <span className="px-3 py-1 text-xs font-bold rounded-full"
+                              style={{ backgroundColor: 'rgba(74,111,165,0.1)', color: '#4a6fa5' }}>
+                              {atelier.domaine}
                             </span>
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                          {isOwnProfile && (
+                            <button onClick={() => navigate(`/atelier/${atelier.id}/edit`)}
+                              className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-xl"
+                              style={{ background: 'linear-gradient(135deg, #4a6fa5, #3a5784)' }}>
+                              <Edit className="w-4 h-4" /> Modifier
+                            </button>
+                          )}
+                        </div>
 
-                    {/* Liste avis */}
-                    <div className="space-y-4">
-                      {artisan.customerReviews.map((review) => (
-                        <Card key={review.id} className="p-6">
-                          <div className="flex items-start gap-4">
-                            <div className="flex items-center justify-center w-12 h-12 font-bold text-white rounded-full" style={{ backgroundColor: 'var(--primary)' }}>
-                              {review.author[0]}
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between mb-2">
-                                <div>
-                                  <div className="font-bold" style={{ color: 'var(--dark)' }}>
-                                    {review.author}
+                        {coverPhoto && (
+                          <div className="h-56 overflow-hidden rounded-xl">
+                            <img src={coverPhoto} alt={atelier.nom} className="object-cover w-full h-full" />
+                          </div>
+                        )}
+
+                        {/* Offres */}
+                        {atelier.offres?.length > 0 && (
+                          <div>
+                            <h4 className="mb-4 text-lg font-bold" style={{ color: '#2b2d42' }}>Offres de services</h4>
+                            <div className="space-y-3">
+                              {atelier.offres.map(offre => (
+                                <div key={offre.id}
+                                  className="flex items-start justify-between p-4 transition-all border-2 rounded-xl hover:shadow-md"
+                                  style={{ borderColor: '#e9ecef' }}>
+                                  <div>
+                                    <div className="mb-1 font-bold" style={{ color: '#2b2d42' }}>{offre.titre}</div>
+                                    <div className="text-sm" style={{ color: '#2b2d42', opacity: 0.6 }}>{offre.description}</div>
                                   </div>
-                                  <div className="text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>
-                                    {review.date}
+                                  <div className="ml-4 text-right">
+                                    <div className="text-lg font-black" style={{ color: '#ff7e5f' }}>
+                                      {offre.prix ? `${Number(offre.prix).toLocaleString('fr-FR')} FCFA` : 'Sur devis'}
+                                    </div>
+                                    {!isOwnProfile && (
+                                      <Link to={`/services/request/${atelier.id}`}>
+                                        <button className="px-3 py-1 mt-1 text-xs font-bold text-white rounded-lg"
+                                          style={{ backgroundColor: '#4a6fa5' }}>
+                                          Commander
+                                        </button>
+                                      </Link>
+                                    )}
                                   </div>
                                 </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Avis (vue client) */}
+                {activeTab === 'reviews' && !isOwnProfile && (
+                  <div className="space-y-4">
+                    {atelier.avis?.length > 0 ? (
+                      atelier.avis.map(avis => {
+                        const author  = avis.client?.prenom ?? avis.client?.nom ?? 'Client';
+                        const note    = avis.note ?? 0;
+                        const comment = avis.commentaire ?? '';
+                        return (
+                          <div key={avis.id} className="flex items-start gap-4 p-4 rounded-xl"
+                            style={{ backgroundColor: '#f8f9fa' }}>
+                            <div className="flex items-center justify-center flex-shrink-0 w-12 h-12 font-bold text-white rounded-full"
+                              style={{ backgroundColor: '#4a6fa5' }}>
+                              {author[0]?.toUpperCase() ?? '?'}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-bold" style={{ color: '#2b2d42' }}>{author}</span>
                                 <div className="flex items-center">
                                   {[...Array(5)].map((_, i) => (
-                                    <Star key={i} className={`w-4 h-4 ${i < review.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
+                                    <Star key={i} className={`w-4 h-4 ${i < note ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
                                   ))}
                                 </div>
                               </div>
-                              <p className="text-sm leading-relaxed" style={{ color: 'var(--dark)', opacity: 0.8 }}>
-                                {review.comment}
-                              </p>
-                              {review.verified && (
-                                <div className="flex items-center gap-1 mt-2 text-xs font-bold" style={{ color: '#22c55e' }}>
-                                  <CheckCircle className="w-4 h-4" />
-                                  Avis vérifié
-                                </div>
-                              )}
+                              <p className="text-sm" style={{ color: '#2b2d42', opacity: 0.7 }}>{comment}</p>
                             </div>
                           </div>
-                        </Card>
-                      ))}
-                    </div>
+                        );
+                      })
+                    ) : (
+                      <div className="py-10 text-center">
+                        <Star className="w-10 h-10 mx-auto mb-3" style={{ color: '#4a6fa5', opacity: 0.3 }} />
+                        <p className="text-sm" style={{ color: '#2b2d42', opacity: 0.5 }}>Aucun avis pour l'instant.</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            </Card>
+            </div>
           </div>
 
-          {/* Sidebar */}
+          {/* ── Sidebar */}
           <div className="space-y-6 lg:col-span-1">
-            {/* Card contact */}
-            <Card>
-              <h3 className="mb-4 text-xl font-bold" style={{ color: 'var(--dark)' }}>
-                Réserver maintenant
-              </h3>
-              
-              <div className="mb-6 space-y-3">
-                <div className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: 'var(--gray)' }}>
-                  <Phone className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-                  <div>
-                    <div className="text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>
-                      Téléphone
-                    </div>
-                    <div className="text-sm font-bold" style={{ color: 'var(--dark)' }}>
-                      {artisan.phone}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: 'var(--gray)' }}>
-                  <Mail className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-                  <div>
-                    <div className="text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>
-                      Email
-                    </div>
-                    <div className="text-sm font-bold" style={{ color: 'var(--dark)' }}>
-                      {artisan.email}
-                    </div>
-                  </div>
+            {isOwnProfile ? (
+              <div className="p-6 bg-white shadow-lg rounded-2xl">
+                <h3 className="mb-4 text-xl font-bold" style={{ color: '#2b2d42' }}>Mon espace artisan</h3>
+                <div className="space-y-3">
+                  <Link to="/profile/edit">
+                    <button className="flex items-center w-full gap-3 p-3 transition-all border-2 border-gray-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 group">
+                      <Edit className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
+                      <span className="text-sm font-bold" style={{ color: '#2b2d42' }}>Modifier mon profil</span>
+                    </button>
+                  </Link>
+                  <button onClick={() => navigate(`/atelier/${atelier.id}/edit`)}
+                    className="flex items-center w-full gap-3 p-3 transition-all border-2 border-gray-200 rounded-xl hover:border-orange-400 hover:bg-orange-50 group">
+                    <Store className="w-5 h-5 text-gray-400 group-hover:text-orange-600" />
+                    <span className="text-sm font-bold" style={{ color: '#2b2d42' }}>Gérer mon atelier</span>
+                  </button>
                 </div>
               </div>
-
-              <div className="space-y-3">
-                <Link to={`/appointments/book/${id}`}>
-                  <Button variant="primary" className="w-full">
-                    <Calendar className="w-5 h-5" />
-                    Prendre rendez-vous
-                  </Button>
-                </Link>
-                
-                <Link to={`/services/request/${id}`}>
-                  <Button variant="secondary" className="w-full">
-                    <Clock className="w-5 h-5" />
-                    Demande de service
-                  </Button>
-                </Link>
-
-                <Button variant="outline" className="w-full">
-                  <MessageCircle className="w-5 h-5" />
-                  Envoyer un message
-                </Button>
-              </div>
-            </Card>
-
-            {/* Card tarifs */}
-            <Card>
-              <h3 className="mb-4 text-xl font-bold" style={{ color: 'var(--dark)' }}>
-                Tarifs
-              </h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                    À partir de
-                  </span>
-                  <span className="text-2xl font-black" style={{ color: 'var(--accent)' }}>
-                    {artisan.priceRange.min} FCFA
-                  </span>
-                </div>
-                <div className="pt-3 border-t" style={{ borderColor: 'var(--gray-dark)' }}>
-                  <div className="text-xs" style={{ color: 'var(--dark)', opacity: 0.6 }}>
-                    💡 Les tarifs peuvent varier selon la complexité du projet
+            ) : (
+              <>
+                <div className="p-6 bg-white shadow-lg rounded-2xl">
+                  <h3 className="mb-4 text-xl font-bold" style={{ color: '#2b2d42' }}>Contacter l'artisan</h3>
+                  <div className="space-y-3">
+                    <Link to={`/appointments/book/${atelier.id}`} className="block">
+                      <button className="flex items-center justify-center w-full gap-2 py-3 font-bold text-white transition-all rounded-xl hover:shadow-lg"
+                        style={{ background: 'linear-gradient(135deg, #4a6fa5, #3a5784)' }}>
+                        <Calendar className="w-5 h-5" /> Prendre rendez-vous
+                      </button>
+                    </Link>
+                    <Link to={`/services/request/${atelier.id}`} className="block">
+                      <button className="flex items-center justify-center w-full gap-2 py-3 font-bold transition-all border-2 rounded-xl hover:bg-gray-50"
+                        style={{ borderColor: '#4a6fa5', color: '#4a6fa5' }}>
+                        <Clock className="w-5 h-5" /> Demande de service
+                      </button>
+                    </Link>
+                    <button className="flex items-center justify-center w-full gap-2 py-3 font-bold transition-all border-2 rounded-xl hover:bg-gray-50"
+                      style={{ borderColor: '#e9ecef', color: '#2b2d42' }}>
+                      <MessageCircle className="w-5 h-5" /> Envoyer un message
+                    </button>
                   </div>
                 </div>
-              </div>
-            </Card>
 
-            {/* Card garanties */}
-            <Card>
-              <h3 className="mb-4 text-xl font-bold" style={{ color: 'var(--dark)' }}>
-                Garanties
-              </h3>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <CheckCircle className="flex-shrink-0 w-5 h-5" style={{ color: '#22c55e' }} />
-                  <div>
-                    <div className="mb-1 text-sm font-bold" style={{ color: 'var(--dark)' }}>
-                      Travail garanti
-                    </div>
-                    <div className="text-xs" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                      Garantie satisfaction 30 jours
-                    </div>
+                <div className="p-6 bg-white shadow-lg rounded-2xl">
+                  <h3 className="mb-4 text-lg font-bold" style={{ color: '#2b2d42' }}>Garanties</h3>
+                  <div className="space-y-3">
+                    {[
+                      { Icon: CheckCircle, color: '#22c55e', title: 'Travail garanti',       sub: 'Satisfaction 30 jours'      },
+                      { Icon: Shield,      color: '#4a6fa5', title: 'Professionnel vérifié', sub: 'Identité et qualifications' },
+                      { Icon: Star,        color: '#fbbf24', title: 'Service de qualité',    sub: `Note ${rating ?? '–'}/5`   },
+                    ].map(({ Icon, color, title, sub }) => (
+                      <div key={title} className="flex items-start gap-3">
+                        <Icon className="flex-shrink-0 w-5 h-5 mt-0.5" style={{ color }} />
+                        <div>
+                          <div className="text-sm font-bold" style={{ color: '#2b2d42' }}>{title}</div>
+                          <div className="text-xs" style={{ color: '#2b2d42', opacity: 0.6 }}>{sub}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <Shield className="flex-shrink-0 w-5 h-5" style={{ color: 'var(--primary)' }} />
-                  <div>
-                    <div className="mb-1 text-sm font-bold" style={{ color: 'var(--dark)' }}>
-                      Professionnel vérifié
-                    </div>
-                    <div className="text-xs" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                      Identité et qualifications vérifiées
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Star className="flex-shrink-0 w-5 h-5" style={{ color: '#fbbf24' }} />
-                  <div>
-                    <div className="mb-1 text-sm font-bold" style={{ color: 'var(--dark)' }}>
-                      Service de qualité
-                    </div>
-                    <div className="text-xs" style={{ color: 'var(--dark)', opacity: 0.7 }}>
-                      Note moyenne de {artisan.rating}/5
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Card>
+              </>
+            )}
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-// Mock data
-const mockArtisan = {
-  id: 1,
-  name: 'Jean Kouassi',
-  specialty: 'Plomberie & Installation sanitaire',
-  location: 'Cotonou, Bénin',
-  rating: 4.9,
-  reviews: 127,
-  experience: 8,
-  completedProjects: 340,
-  verified: true,
-  available: true,
-  phone: '+229 97 00 00 01',
-  email: 'jean.kouassi@example.com',
-  description: 'Expert en plomberie avec plus de 8 ans d\'expérience. Spécialisé dans l\'installation et la réparation de systèmes sanitaires résidentiels et commerciaux. Interventions rapides et travail soigné garanti.',
-  gallery: [
-    'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=800',
-    'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=800',
-    'https://images.unsplash.com/photo-1607400201889-565b1ee75f8e?w=800',
-    'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800'
-  ],
-  portfolio: [
-    'https://images.unsplash.com/photo-1607400201889-565b1ee75f8e?w=400',
-    'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400',
-    'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=400',
-    'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=400',
-    'https://images.unsplash.com/photo-1581579186913-45ac3e6efe93?w=400',
-    'https://images.unsplash.com/photo-1581579438747-1dc8d17bbce4?w=400'
-  ],
-  skills: [
-    'Installation sanitaire',
-    'Réparation fuites',
-    'Débouchage',
-    'Installation chauffe-eau',
-    'Rénovation salle de bain',
-    'Dépannage urgence'
-  ],
-  certifications: [
-    'Certifié Professionnel',
-    'Formation Sécurité',
-    'Installateur Agréé'
-  ],
-  workingHours: [
-    { day: 'Lundi - Vendredi', hours: '8h00 - 18h00' },
-    { day: 'Samedi', hours: '9h00 - 14h00' },
-    { day: 'Dimanche', hours: 'Sur rendez-vous' }
-  ],
-  priceRange: {
-    min: 15000,
-    max: 150000
-  },
-  offers: [
-    {
-      id: 1,
-      title: 'Dépannage plomberie',
-      description: 'Intervention rapide pour fuites, débouchage, petites réparations',
-      price: '15000'
-    },
-    {
-      id: 2,
-      title: 'Installation sanitaire complète',
-      description: 'Installation lavabo, WC, douche avec garantie 2 ans',
-      price: '85000'
-    },
-    {
-      id: 3,
-      title: 'Rénovation salle de bain',
-      description: 'Rénovation complète avec matériaux fournis',
-      price: '350000'
-    }
-  ],
-  customerReviews: [
-    {
-      id: 1,
-      author: 'Marie Dossou',
-      rating: 5,
-      date: 'Il y a 2 semaines',
-      comment: 'Excellent travail ! Jean a réparé ma fuite d\'eau en moins d\'une heure. Très professionnel et ponctuel. Je recommande vivement.',
-      verified: true
-    },
-    {
-      id: 2,
-      author: 'Pierre Agbodji',
-      rating: 5,
-      date: 'Il y a 1 mois',
-      comment: 'Installation complète de ma salle de bain. Travail impeccable, respect des délais et prix honnête. Très satisfait du résultat.',
-      verified: true
-    },
-    {
-      id: 3,
-      author: 'Sophie Hounnou',
-      rating: 4,
-      date: 'Il y a 2 mois',
-      comment: 'Bon travail dans l\'ensemble. Un petit retard sur le planning mais le résultat final est satisfaisant.',
-      verified: false
-    }
-  ]
-};
