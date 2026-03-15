@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from "../../components/Auth/AuthContext";
-import { authAPI } from "../../../../services/api";
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from "../../components/Auth/useAuthHook";
 
 const Login = () => {
-    const navigate  = useNavigate();
+    const navigate = useNavigate();
     const { login } = useAuth();
-
+    const [searchParams,setSearchParmas] = useSearchParams();
     const [showPassword, setShowPassword] = useState(false);
     const [loading,      setLoading]      = useState(false);
     const [errors,       setErrors]       = useState({});
@@ -42,44 +41,43 @@ const Login = () => {
         e.preventDefault();
 
         const newErrors = validate();
+        const callbackUrl = searchParams.get('redirect') || '/'
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
             return;
         }
 
+        if (loading) return;
         setLoading(true);
         setApiError('');
 
         try {
-            // Utilise authAPI.login() depuis api.js
-            const data = await authAPI.login({
-                email:        formData.email,
-                mot_de_passe: formData.mot_de_passe,
-            });
-
-            // Stocke user + token dans le contexte (+ localStorage via AuthContext)
-            login(data.user, data.token);
-
-            // Redirection selon le rôle
-            const role = data.user?.role;
-            if (role === 'ADMIN')        navigate('/admin/dashboard', { replace: true });
-            else if (role === 'ARTISAN') navigate('/profile',         { replace: true });
-            else                         navigate('/',                 { replace: true });
-
-        } catch (err) {
-            // Erreurs de validation Laravel (422)
-            if (err.errors) {
-                const laravelErrors = {};
-                Object.entries(err.errors).forEach(([key, msgs]) => {
-                    laravelErrors[key] = Array.isArray(msgs) ? msgs[0] : msgs;
-                });
-                setErrors(laravelErrors);
-                return;
+            const response = await fetch("/api/login", {
+                method: "POST",
+                headers: {
+                    'Content-Type': 'application/json',
+                    'accept': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+            if (!response.ok) {
+                // Si l'API renvoie des erreurs de validation (ex: code 422)
+                if (response.status === 401 ) {
+                    setErrors({ ...errors, submit: "Mot de passe invalide ou Email invalide" });
+                }
+                throw new Error(`Erreur code: ${response.status}`);
             }
-            // Erreur générique (401, 403, 500…)
-            setApiError(err.message || 'Email ou mot de passe incorrect');
-        } finally {
-            setLoading(false);
+            const data = await response.json();
+            if (!data.user || !data.accessToken) {
+                throw new Error("User undefined or accessToken invalid");
+            }
+            login(data.user, data.accessToken);
+            navigate(callbackUrl);
+        } catch (error) {
+            console.error("Erreur lors de l'inscription:", error.message);
+        }
+        finally{
+            setLoading(false)
         }
     };
 
@@ -103,15 +101,15 @@ const Login = () => {
                     <p  className="text-sm"                 style={{ color: '#2b2d42', opacity: 0.7 }}>Connectez-vous à votre compte</p>
                 </div>
 
-                <div className="p-5 shadow-lg rounded-xl" style={{ border: '1px solid #e9ecef', backgroundColor: 'white' }}>
-
-                    {apiError && (
-                        <div className="p-3 mb-4 text-sm font-semibold rounded-xl"
-                            style={{ backgroundColor: 'rgba(255,126,95,0.1)', color: '#ff7e5f', border: '1px solid rgba(255,126,95,0.3)' }}>
-                            ⚠️ {apiError}
+                <div className="p-5 shadow-lg rounded-xl" style={{
+                    border: '1px solid #e9ecef',
+                    backgroundColor: 'white'
+                }}>
+                    {errors.submit && (
+                        <div className="p-4 mb-6 rounded-xl" style={{ backgroundColor: 'rgba(255, 126, 95, 0.1)', borderLeft: '4px solid var(--accent)' }}>
+                            <p className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>{errors.submit}</p>
                         </div>
                     )}
-
                     <form onSubmit={handleSubmit}>
 
                         {/* Email */}

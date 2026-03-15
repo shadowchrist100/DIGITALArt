@@ -18,6 +18,8 @@ class Artisan extends Model
     protected $fillable = [
         'utilisateur_id',
         'telephone',
+        'domaine',
+        'specialites'
     ];
 
     // -------------------------

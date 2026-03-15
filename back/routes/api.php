@@ -213,16 +213,20 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
         Route::delete('{id}',              [AdminAvisController::class, 'destroy']);
     });
 
-    // ── Supervision services ──────────────────────────────────
-    Route::get('services',                 [AdminServiceController::class, 'indexServices']);
-    Route::delete('services/{id}',         [AdminServiceController::class, 'destroyService']);
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register']);
+Route::get('/refresh', [AuthController::class, 'refresh']);
 
     // ── Supervision rendez-vous ───────────────────────────────
     Route::get('rendez-vous',              [AdminServiceController::class, 'indexRendezVous']);
     Route::delete('rendez-vous/{id}',      [AdminServiceController::class, 'destroyRendezVous']);
 
-    // ── Supervision services immédiats ────────────────────────
-    Route::get('services-immediats',       [AdminServiceController::class, 'indexServicesImmediats']);
+// Routes pour récupérer les artisans
+Route::middleware('auth:api')->group(function (){
+    Route::get('/artisans', [ArtisanController::class, 'index']);
+    Route::get('/artisans/{id}', [ArtisanController::class, 'show']);
+});
+
 
     // ── Notifications admin ───────────────────────────────────
     Route::post('notifications/envoyer',   [AdminNotificationController::class, 'envoyer']);
