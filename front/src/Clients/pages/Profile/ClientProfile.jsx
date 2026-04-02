@@ -5,7 +5,7 @@ import {
   FileText, Clock, Award, LogOut, Shield, Hammer,
   Briefcase, Store, Plus, Loader, ChevronRight
 } from 'lucide-react';
-import { useAuth } from '../../components/Auth/AuthContext';
+import { useAuth } from '../../components/Auth/useAuthHook';
 import { profilAPI, atelierAPI, rendezVousAPI } from '../../../../services/api';
 
 export default function ClientProfile() {

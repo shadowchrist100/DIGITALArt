@@ -15,8 +15,9 @@ export default function Register() {
         nom: "",
         prenom: "",
         email: "",
-        phone: "",
-        specialty: "",
+        telephone: "",
+        specialite: "",
+        domaine:"",
         role: "",
         password: "",
         password_confirmation: "",
@@ -77,20 +78,20 @@ export default function Register() {
             newErrors.email = "Email invalide";
         }
 
-        if (userType === "artisan" && !formData.phone.trim()) {
-            newErrors.phone = "Le téléphone est requis";
+        if (userType === "artisan" && !formData.telephone.trim()) {
+            newErrors.telephone = "Le téléphone est requis";
         }
 
-        if (userType === "artisan" && !formData.domain) {
-            newErrors.domain = "Le domaine est requis";
+        if (userType === "artisan" && !formData.domaine) {
+            newErrors.domaine = "Le domaine est requis";
         }
 
-        if (userType === "artisan" && !formData.specialty) {
-            newErrors.specialty = "La spécialité est requise";
+        if (userType === "artisan" && !formData.specialite) {
+            newErrors.specialite = "La spécialité est requise";
         }
 
-        if (userType === "artisan" && !formData.specialty) {
-            newErrors.specialty = "La spécialité est requise";
+        if (userType === "artisan" && !formData.specialite) {
+            newErrors.specialite = "La spécialité est requise";
         }
 
         if (!formData.password) {
@@ -128,13 +129,13 @@ export default function Register() {
         setLoading(true);
 
         try {
-            const response = await fetch("/api/register", {
+            const response = await fetch("/api/auth/register", {
                 method: "POST",
                 headers: {
                     'Content-Type': 'application/json',
                     'accept': 'application/json'
                 },
-                body: JSON.stringify({ ...formData, role: userType })
+                body: JSON.stringify({ ...formData, role: userType.toUpperCase() })
             })
             if (!response.ok) {
                 // Si l'API renvoie des erreurs de validation (ex: code 422)
@@ -158,7 +159,7 @@ export default function Register() {
         }
     };
 
-    const availableSpecialties = formData.domain ? domainsData[formData.domain] || [] : [];
+    const availableSpecialties = formData.domaine ? domainsData[formData.domaine] || [] : [];
 
     return (
         <div className="flex items-center justify-center min-h-screen p-4" style={{ backgroundColor: '#f8f9fa' }}>
@@ -328,22 +329,22 @@ export default function Register() {
                                         </div>
                                         <input
                                             type="tel"
-                                            name="phone"
-                                            value={formData.phone}
+                                            name="telephone"
+                                            value={formData.telephone}
                                             onChange={handleChange}
                                             placeholder="+229 XX XX XX XX"
                                             className="w-full h-12 px-4 pl-12 transition-all border-2 rounded-xl focus:outline-none"
                                             style={{
-                                                backgroundColor: errors.phone ? 'rgba(255, 126, 95, 0.05)' : '#f8f9fa',
-                                                borderColor: errors.phone ? '#ff7e5f' : '#e9ecef',
+                                                backgroundColor: errors.telephone ? 'rgba(255, 126, 95, 0.05)' : '#f8f9fa',
+                                                borderColor: errors.telephone ? '#ff7e5f' : '#e9ecef',
                                                 color: '#2b2d42',
                                             }}
-                                            onFocus={(e) => !errors.phone && (e.target.style.borderColor = '#4a6fa5')}
-                                            onBlur={(e) => !errors.phone && (e.target.style.borderColor = '#e9ecef')}
+                                            onFocus={(e) => !errors.telephone && (e.target.style.borderColor = '#4a6fa5')}
+                                            onBlur={(e) => !errors.telephone && (e.target.style.borderColor = '#e9ecef')}
                                         />
                                     </div>
-                                    {errors.phone && (
-                                        <p className="mt-2 text-sm font-semibold" style={{ color: '#ff7e5f' }}>{errors.phone}</p>
+                                    {errors.telephone && (
+                                        <p className="mt-2 text-sm font-semibold" style={{ color: '#ff7e5f' }}>{errors.telephone}</p>
                                     )}
                                 </div>
                             )}
@@ -362,17 +363,17 @@ export default function Register() {
                                                     <Briefcase className="w-5 h-5" />
                                                 </div>
                                                 <select
-                                                    name="domain"
-                                                    value={formData.domain}
+                                                    name="domaine"
+                                                    value={formData.domaine}
                                                     onChange={handleChange}
                                                     className="w-full h-12 px-4 pl-12 transition-all border-2 rounded-xl focus:outline-none"
                                                     style={{
-                                                        backgroundColor: errors.domain ? 'rgba(255, 126, 95, 0.05)' : '#f8f9fa',
-                                                        borderColor: errors.domain ? '#ff7e5f' : '#e9ecef',
+                                                        backgroundColor: errors.domaine ? 'rgba(255, 126, 95, 0.05)' : '#f8f9fa',
+                                                        borderColor: errors.domaine ? '#ff7e5f' : '#e9ecef',
                                                         color: '#2b2d42',
                                                     }}
-                                                    onFocus={(e) => !errors.domain && (e.target.style.borderColor = '#4a6fa5')}
-                                                    onBlur={(e) => !errors.domain && (e.target.style.borderColor = '#e9ecef')}
+                                                    onFocus={(e) => !errors.domaine && (e.target.style.borderColor = '#4a6fa5')}
+                                                    onBlur={(e) => !errors.domaine && (e.target.style.borderColor = '#e9ecef')}
                                                 >
                                                     <option value="">Choisir un domaine</option>
                                                     {Object.keys(domainsData).map(domain => (
@@ -433,14 +434,14 @@ export default function Register() {
                                         </div>
                                     )}
 
-                                    {errors.domain && (
-                                        <p className="mt-2 text-sm font-semibold" style={{ color: '#ff7e5f' }}>{errors.domain}</p>
+                                    {errors.domaine && (
+                                        <p className="mt-2 text-sm font-semibold" style={{ color: '#ff7e5f' }}>{errors.domaine}</p>
                                     )}
                                 </div>
                             )}
 
                             {/* Spécialité (artisans) */}
-                            {userType === "artisan" && formData.domain && (
+                            {userType === "artisan" && formData.domaine && (
                                 <div>
                                     <label className="block mb-2 text-sm font-bold" style={{ color: '#2b2d42' }}>
                                         Spécialité
@@ -450,17 +451,17 @@ export default function Register() {
                                             <Briefcase className="w-5 h-5" />
                                         </div>
                                         <select
-                                            name="specialty"
-                                            value={formData.specialty}
+                                            name="specialite"
+                                            value={formData.specialite}
                                             onChange={handleChange}
                                             className="w-full h-12 px-4 pl-12 transition-all border-2 rounded-xl focus:outline-none"
                                             style={{
-                                                backgroundColor: errors.specialty ? 'rgba(255, 126, 95, 0.05)' : '#f8f9fa',
-                                                borderColor: errors.specialty ? '#ff7e5f' : '#e9ecef',
+                                                backgroundColor: errors.specialite ? 'rgba(255, 126, 95, 0.05)' : '#f8f9fa',
+                                                borderColor: errors.specialite ? '#ff7e5f' : '#e9ecef',
                                                 color: '#2b2d42',
                                             }}
-                                            onFocus={(e) => !errors.specialty && (e.target.style.borderColor = '#4a6fa5')}
-                                            onBlur={(e) => !errors.specialty && (e.target.style.borderColor = '#e9ecef')}
+                                            onFocus={(e) => !errors.specialite && (e.target.style.borderColor = '#4a6fa5')}
+                                            onBlur={(e) => !errors.specialite && (e.target.style.borderColor = '#e9ecef')}
                                         >
                                             <option value="">Choisir une spécialité</option>
                                             {availableSpecialties.length > 0 ? (
@@ -472,8 +473,8 @@ export default function Register() {
                                             )}
                                         </select>
                                     </div>
-                                    {errors.specialty && (
-                                        <p className="mt-2 text-sm font-semibold" style={{ color: '#ff7e5f' }}>{errors.specialty}</p>
+                                    {errors.specialite && (
+                                        <p className="mt-2 text-sm font-semibold" style={{ color: '#ff7e5f' }}>{errors.specialite}</p>
                                     )}
                                 </div>
                             )}
@@ -611,76 +612,7 @@ export default function Register() {
                         </p>
                     </div>
                 </div>
-              )}
-
-              {/* Mot de passe */}
-              <div>
-                <label className="block mb-2 text-sm font-bold" style={{ color: '#2b2d42' }}>Mot de passe</label>
-                <div className="relative">
-                  <div className="absolute -translate-y-1/2 left-4 top-1/2" style={{ color: '#ff7e5f' }}><Lock className="w-5 h-5" /></div>
-                  <input type={showPassword ? 'text' : 'password'} name="mot_de_passe" value={formData.mot_de_passe} onChange={handleChange} placeholder="••••••••"
-                    className="w-full h-12 px-4 pl-12 pr-12 transition-all border-2 rounded-xl focus:outline-none"
-                    style={s('mot_de_passe')} onFocus={(e) => fo(e, 'mot_de_passe')} onBlur={(e) => bl(e, 'mot_de_passe')} />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)}
-                    className="absolute -translate-y-1/2 right-4 top-1/2" style={{ color: '#4a6fa5' }}>
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-                {errors.mot_de_passe && <p className="mt-2 text-sm font-semibold" style={{ color: '#ff7e5f' }}>{errors.mot_de_passe}</p>}
-              </div>
-
-              {/* Confirmer mot de passe */}
-              <div>
-                <label className="block mb-2 text-sm font-bold" style={{ color: '#2b2d42' }}>Confirmer le mot de passe</label>
-                <div className="relative">
-                  <div className="absolute -translate-y-1/2 left-4 top-1/2" style={{ color: '#ff7e5f' }}><Lock className="w-5 h-5" /></div>
-                  <input type={showConfirmPassword ? 'text' : 'password'} name="mot_de_passe_confirmation" value={formData.mot_de_passe_confirmation} onChange={handleChange} placeholder="••••••••"
-                    className="w-full h-12 px-4 pl-12 pr-12 transition-all border-2 rounded-xl focus:outline-none"
-                    style={s('mot_de_passe_confirmation')} onFocus={(e) => fo(e, 'mot_de_passe_confirmation')} onBlur={(e) => bl(e, 'mot_de_passe_confirmation')} />
-                  <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute -translate-y-1/2 right-4 top-1/2" style={{ color: '#4a6fa5' }}>
-                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-                {errors.mot_de_passe_confirmation && <p className="mt-2 text-sm font-semibold" style={{ color: '#ff7e5f' }}>{errors.mot_de_passe_confirmation}</p>}
-              </div>
-
-              {/* Conditions */}
-              <div>
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input type="checkbox" name="acceptTerms" checked={formData.acceptTerms} onChange={handleChange}
-                    className="w-4 h-4 mt-1 rounded cursor-pointer" style={{ accentColor: '#4a6fa5' }} />
-                  <span className="text-sm" style={{ color: '#2b2d42' }}>
-                    J'accepte les{" "}
-                    <a href="#" className="font-bold" style={{ color: '#4a6fa5' }}>conditions d'utilisation</a>
-                  </span>
-                </label>
-                {errors.acceptTerms && <p className="mt-2 text-sm font-semibold" style={{ color: '#ff7e5f' }}>{errors.acceptTerms}</p>}
-              </div>
-
-              {/* Submit */}
-              <button type="submit" disabled={loading}
-                className="w-full h-12 text-sm font-semibold text-white rounded-xl transition-all hover:shadow-lg hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ background: 'linear-gradient(135deg, #4a6fa5, #3a5784)' }}>
-                {loading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-5 h-5 border-2 border-white rounded-full border-t-transparent animate-spin"></div>
-                    Inscription en cours...
-                  </div>
-                ) : (userType === 'client' ? 'Créer mon compte client' : 'Créer mon compte artisan')}
-              </button>
-
             </div>
-          </form>
-
-          <div className="pt-4 mt-6 text-center border-t" style={{ borderColor: '#e9ecef' }}>
-            <p className="text-sm" style={{ color: '#2b2d42', opacity: 0.7 }}>
-              Déjà un compte ?{' '}
-              <Link to="/login" className="font-semibold transition-all hover:underline" style={{ color: '#ff7e5f' }}>
-                Se connecter
-              </Link>
-            </p>
-          </div>
         </div>
     );
 }

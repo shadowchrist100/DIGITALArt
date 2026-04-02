@@ -1,5 +1,4 @@
 <?php
-
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PasswordController;
@@ -23,11 +22,12 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 
 // Routes publiques
 Route::prefix('auth')->group(function () {
-    Route::post('register/client',  [AuthController::class, 'registerClient']);
-    Route::post('register/artisan', [AuthController::class, 'registerArtisan']);
+    Route::post('register',  [AuthController::class, 'register']);
     Route::post('login',            [AuthController::class, 'login']);
+    Route::post('refresh',           [AuthController::class, 'refresh']);
     Route::post('forgot-password',   [PasswordController::class, 'forgotPassword']);
     Route::post('reset-password',    [PasswordController::class, 'resetPassword']);
+    Route::post('logout',            [AuthController::class, 'logout']);
 });
 
 
@@ -46,7 +46,7 @@ Route::get('domaines',                      [AtelierController::class, 'domaines
 Route::middleware('auth:sanctum', 'suspendu')->group(function () {
 
     // Auth
-    Route::prefix('auth')->group(function () {
+    Route::prefix('api')->group(function () {
         Route::get('me',          [AuthController::class, 'me']);
         Route::post('logout',     [AuthController::class, 'logout']);
         Route::post('logout-all', [AuthController::class, 'logoutAll']);

@@ -20,14 +20,14 @@ class User extends Authenticatable
         'nom',
         'prenom',
         'email',
-        'mot_de_passe',
+        'password',
         'photo_profil',
         'role',
         'suspendu',
     ];
 
     protected $hidden = [
-        'mot_de_passe',
+        'password',
     ];
 
     /**
@@ -69,10 +69,17 @@ class User extends Authenticatable
     /**
      * Un utilisateur ARTISAN possède un profil artisan.
      */
-    public function artisan(): HasOne
+    public function client(){
+        return $this->hasOne(Client::class);
+    }
+
+    public function artisan(){
+        return $this->hasOne(Artisan::class);
+    }
+    /*public function artisan(): HasOne
     {
         return $this->hasOne(Artisan::class, 'utilisateur_id');
-    }
+    }*/
 
     /**
      * Les rendez-vous demandés par ce client.

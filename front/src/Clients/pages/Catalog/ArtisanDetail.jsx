@@ -5,7 +5,7 @@ import {
   MessageCircle, ChevronLeft, Heart, Share2, CheckCircle,
   Edit, Plus, Store, Hammer, AlertCircle, Loader
 } from 'lucide-react';
-import { useAuth } from '../../components/Auth/AuthContext';
+import { useAuth } from '../../components/Auth/useAuthHook';
 import { atelierAPI } from '../../../../services/api';
 
 export default function ArtisanDetail() {

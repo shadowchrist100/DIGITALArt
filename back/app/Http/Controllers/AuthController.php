@@ -7,76 +7,39 @@ use App\Models\Artisan;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Facades\DB;
-
+use App\Models\RefreshedToken;
+use App\Services\UserService;
 
 class AuthController extends Controller
 {
-    public function login(Request $request)
-    {
-        $credentials = $request->validate([
-            'email' => ['required', 'email', 'max:50'],
-            'password' => ['required', Password::min(6)]
-        ]);
-        if (! $token = auth('api')->attempt($credentials)) {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
-        $user = User::where('email', $credentials['email'])->first();
-        // return $this->respond_with_token($token,$user);
-        // $credentials = $request->only('email', 'password');
-        // $credentials
-        // $token =$user = [];
-
-        $token = $user->createToken('auth_token', ['role:client'])->plainTextToken;
-
-        return response()->json([
-            'message' => 'Compte client créé avec succès.',
-            'token'   => $token,
-            'user'    => $this->formatUser($user),
-        ], 201);
+    private $userService;
+    public function __construct(UserService $userService){
+        $this->userService = $userService;
     }
-
     public function register(Request $request)
     {
-        $credentials = $request->validate([
+        $data = $request->validate([
             'nom' => ['required', 'max:50'],
             'prenom' => ['required', 'max:50'],
             'email' => ['required', 'email', 'unique:users', 'max:50'],
-            'password' => ['required', 'confirmed', Password::min(6)],
-            'role' => ['required'],
-            'photo_profil' => ['mimes:jpg,jpeg,svg,png']
+            'password' => ['required', 'confirmed', Password::min(8)],
+            'role' => ['required', Rule::in(['CLIENT','ARTISAN'])],
+            'domaine' =>['max:50', 'required_if:role,ARTISAN'],
+            'specialite' =>['required_if:role,ARTISAN','max:50'],
+            'disponible' =>['required_if:role,Artisan','boolean:strict'],
+            'telephone' =>['required_if:role,ARTISAN', 'string']
         ]);
+        $user = $this->userService->register($data);
 
-        $user = User::create($credentials);
-        
-        $token = auth('api')->login($user);
-
-        // Transaction pour garantir l'atomicité
-        $user = \DB::transaction(function () use ($data) {
-            $user = User::create([
-                'nom'          => $data['nom'],
-                'prenom'       => $data['prenom'],
-                'email'        => $data['email'],
-                'mot_de_passe' => Hash::make($data['mot_de_passe']),
-                'photo_profil' => $data['photo_profil'] ?? null,
-                'role'         => 'ARTISAN',
-            ]);
-
-            $user->artisan()->create([
-                'telephone' => $data['telephone'],
-            ]);
-
-            return $user;
-        });
-
-        $token = $user->createToken('auth_token', ['role:artisan'])->plainTextToken;
+        $token = $user->createToken('access_token', ['role'=>strtolower($data['role'])])->plainTextToken;
 
         return response()->json([
-            'message' => 'Compte artisan créé avec succès.',
-            'token'   => $token,
-            'user'    => $this->formatUser($user->load('artisan')),
+            'message' => 'Compte créé avec succès.',
+            'accessToken'   => $token,
+            'user'    => $user,
         ], 201);
     }
 
@@ -110,6 +73,7 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token', $abilities)->plainTextToken;
 
+        return $this->respond_with_token($token,$user);
         return response()->json([
             'message' => 'Connexion réussie.',
             'token'   => $token,
@@ -158,9 +122,7 @@ class AuthController extends Controller
         $cookie = cookie('refresh_token', $refresh_token, 60 * 24 * 30, '/', null, false, true, false, null);
         return response()->json([
             'accessToken' => $token,
-            'token_type' => 'Bearer',
-            'expires_in' => auth('api')->factory()->getTTL() * 60,
-            'user' => $user
+            'user' =>  $this->formatUser($user->load('artisan')),
         ])->withCookie($cookie);
     }
 }

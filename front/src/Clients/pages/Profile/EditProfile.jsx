@@ -4,7 +4,7 @@ import {
   ArrowLeft, User, Mail, Phone, Save,
   Camera, CheckCircle, Loader, Briefcase, Award, FileText
 } from 'lucide-react';
-import { useAuth }   from '../../components/Auth/AuthContext';
+import { useAuth }   from '../../components/Auth/useAuthHook';
 import { profilAPI } from '../../../../services/api';
 
 const EXPERIENCE_LEVELS = [

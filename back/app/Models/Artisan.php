@@ -16,10 +16,11 @@ class Artisan extends Model
     protected $table = 'artisans';
 
     protected $fillable = [
-        'utilisateur_id',
+        'user_id',
         'telephone',
         'domaine',
-        'specialites'
+        'specialite',
+        'disponible'
     ];
 
     // -------------------------
@@ -29,9 +30,9 @@ class Artisan extends Model
     /**
      * L'utilisateur lié à cet artisan.
      */
-    public function utilisateur(): BelongsTo
+    public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'utilisateur_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     /**

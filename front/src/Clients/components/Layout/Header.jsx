@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { Menu, X, Search, Hammer, User, UserPlus, Bell, LogOut } from 'lucide-react';
-import { useAuth } from '../Auth/AuthContext';
+import { useAuth } from '../Auth/useAuthHook';
 
 export default function Header() {
   const navigate = useNavigate();

@@ -16,7 +16,7 @@ import {
 import { Link } from 'react-router-dom';
 import Card   from '../../components/Common/Card';
 import Button from '../../components/Common/Button';
-import { useAuth }    from '../../components/Auth/AuthContext';
+import { useAuth }    from '../../components/Auth/useAuthHook';
 import { serviceAPI } from '../../../../services/api';
 
 // Laravel renvoie `statut` (FR), pas `status` (EN)

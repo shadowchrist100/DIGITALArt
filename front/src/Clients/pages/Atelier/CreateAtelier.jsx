@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Store, MapPin, Briefcase, FileText, Image, ChevronLeft, Loader, CheckCircle } from 'lucide-react';
-import { useAuth }    from '../../components/Auth/AuthContext';
+import { useAuth }    from '../../components/Auth/useAuthHook';
 import { atelierAPI } from '../../../../services/api';
 
 const DOMAINES = [

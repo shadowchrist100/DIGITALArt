@@ -20,12 +20,10 @@ class AtelierController extends Controller
      *   - domaine      : string (catégorie)
      *   - localisation : string
      *   - note_min     : float  (filtrer par note minimale)
-     *   - tri          : string (note_desc, note_asc, recent)
-     *   - par_page     : int    (défaut 15)
-     */
-    public function index(Request $request): JsonResponse
-    {
-        $request->validate([
+     *   - tri          : string (note_desc, note_asc, recent) - par_page     : int    (défaut 15) */
+    public function index(Request $request): JsonResponse {
+        $request->validate(
+        [
             'note_min'  => ['nullable', 'numeric', 'between:1,5'],
             'par_page'  => ['nullable', 'integer', 'between:1,50'],
             'tri'       => ['nullable', 'in:note_desc,note_asc,recent'],
@@ -60,7 +58,7 @@ class AtelierController extends Controller
                 '(SELECT AVG(note) FROM avis WHERE avis.atelier_id = ateliers.id) >= ?',
                 [$noteMin]
             );
-        }  
+        }
         // Tri
        match ($request->tri ?? 'recent') {
             'note_desc' => $query->orderByRaw('(SELECT AVG(note) FROM avis WHERE avis.atelier_id = ateliers.id) DESC NULLS LAST'),
