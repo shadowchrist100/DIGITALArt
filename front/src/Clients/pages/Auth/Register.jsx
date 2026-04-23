@@ -328,7 +328,7 @@ export default function Register() {
                                             <Phone className="w-5 h-5" />
                                         </div>
                                         <input
-                                            type="tel"
+                                            type="string"
                                             name="telephone"
                                             value={formData.telephone}
                                             onChange={handleChange}

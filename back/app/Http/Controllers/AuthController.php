@@ -9,7 +9,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 use App\Models\RefreshedToken;
 use App\Services\UserService;
 
@@ -30,17 +31,12 @@ class AuthController extends Controller
             'domaine' =>['max:50', 'required_if:role,ARTISAN'],
             'specialite' =>['required_if:role,ARTISAN','max:50'],
             'disponible' =>['required_if:role,Artisan','boolean:strict'],
-            'telephone' =>['required_if:role,ARTISAN', 'string']
+            'telephone' =>['required_if:role,ARTISAN','nullable', 'string']
         ]);
         $user = $this->userService->register($data);
 
         $token = $user->createToken('access_token', ['role'=>strtolower($data['role'])])->plainTextToken;
-
-        return response()->json([
-            'message' => 'Compte créé avec succès.',
-            'accessToken'   => $token,
-            'user'    => $user,
-        ], 201);
+        return $this->respond_with_token($token,$user);
     }
 
     // -------------------------------------------------------------------------
@@ -56,7 +52,7 @@ class AuthController extends Controller
 
         $user = User::where('email', $data['email'])->first();
 
-        if (! $user || ! Hash::check($data['mot_de_passe'], $user->mot_de_passe)) {
+        if (! $user || ! Hash::check($data['mot_de_passe'], $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['Les identifiants sont incorrects.'],
             ]);
@@ -74,11 +70,6 @@ class AuthController extends Controller
         $token = $user->createToken('auth_token', $abilities)->plainTextToken;
 
         return $this->respond_with_token($token,$user);
-        return response()->json([
-            'message' => 'Connexion réussie.',
-            'token'   => $token,
-            'user'    => $this->formatUser($user->load('artisan.atelier')),
-        ]);
     }
 
     public function logout() {}
@@ -103,7 +94,8 @@ class AuthController extends Controller
         if (!$user) {
             return response()->json(['error' => 'User no longer exists'], 401);
         }
-        $newAccessToken = auth('api')->login($user);
+
+        $newAccessToken = $user->createToken('acces_token', ['role'=>strtolower($user->role)])->plainTextToken;
 
         $refresh_token->delete();
 
@@ -122,7 +114,7 @@ class AuthController extends Controller
         $cookie = cookie('refresh_token', $refresh_token, 60 * 24 * 30, '/', null, false, true, false, null);
         return response()->json([
             'accessToken' => $token,
-            'user' =>  $this->formatUser($user->load('artisan')),
+            'user' =>$user,
         ])->withCookie($cookie);
     }
 }

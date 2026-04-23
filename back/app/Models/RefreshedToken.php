@@ -10,6 +10,7 @@ class RefreshedToken extends Model
     protected $fillable=[
         'user_id',
         'refresh_token_hash',
+        'expire_at',
         'revoke'
-    ]
+    ];
 }

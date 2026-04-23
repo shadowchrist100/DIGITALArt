@@ -30,7 +30,7 @@ export function AuthProvider({ children }) {
     }, []);
 
     const refreshAccessToken = async () => {
-        const response = await fetch("/api/refresh", {
+        const response = await fetch("/api/auth/refresh", {
             method: "GET",
             credentials: 'include',
             headers: { 'Accept': 'application/json' },

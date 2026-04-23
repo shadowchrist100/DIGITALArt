@@ -3,6 +3,7 @@
     use App\Models\User;
     use Illuminate\Support\Facades\Hash;
     use App\Factories\RegistrationFactory;
+    use Illuminate\Support\Facades\DB;
 
     class UserService{
         private $factory ;
@@ -10,7 +11,7 @@
             $this->factory = $factory;
         }
         public function register(array $data):User{
-            $user = \DB::transaction(function () use ($data) {
+            $user = DB::transaction(function () use ($data) {
                 $user = User::create([
                 'nom'          => $data['nom'],
                 'prenom'       => $data['prenom'],

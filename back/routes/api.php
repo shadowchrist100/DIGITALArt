@@ -24,7 +24,7 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 Route::prefix('auth')->group(function () {
     Route::post('register',  [AuthController::class, 'register']);
     Route::post('login',            [AuthController::class, 'login']);
-    Route::post('refresh',           [AuthController::class, 'refresh']);
+    Route::get('refresh',           [AuthController::class, 'refresh']);
     Route::post('forgot-password',   [PasswordController::class, 'forgotPassword']);
     Route::post('reset-password',    [PasswordController::class, 'resetPassword']);
     Route::post('logout',            [AuthController::class, 'logout']);
@@ -222,10 +222,10 @@ Route::get('/refresh', [AuthController::class, 'refresh']);
     Route::delete('rendez-vous/{id}',      [AdminServiceController::class, 'destroyRendezVous']);
 
 // Routes pour récupérer les artisans
-Route::middleware('auth:api')->group(function (){
-    Route::get('/artisans', [ArtisanController::class, 'index']);
-    Route::get('/artisans/{id}', [ArtisanController::class, 'show']);
-});
+// Route::middleware('auth:api')->group(function (){
+//     Route::get('/artisans', [ArtisanController::class, 'index']);
+//     Route::get('/artisans/{id}', [ArtisanController::class, 'show']);
+// });
 
 
     // ── Notifications admin ───────────────────────────────────
